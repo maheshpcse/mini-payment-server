@@ -1,0 +1,60 @@
+# Local development stack. Credentials here are for disposable local containers only.
+# Run everything: docker compose up --build
+# Run only dependencies (API via `npm run dev`): docker compose up mongo redis
+
+services:
+  mongo:
+    image: mongo:8
+    # Single-node replica set: required for multi-document transactions used by the ledger.
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    environment:
+      NODE_ENV: production
+      APP_ENV: development
+      PAYMENT_PROVIDER_MODE: sandbox
+      PORT: 4000
+      LOG_LEVEL: info
+      CORS_ORIGINS: http://localhost:5173
+      MONGODB_URI: mongodb://mongo:27017/mini_payment?replicaSet=rs0&directConnection=true
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '4000:4000'
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
+  redis-data:

@@ -1,6 +1,9 @@
+import { pino } from 'pino';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { buildTestApp, downCheck, upCheck } from '../helpers/test-app.js';
+import { createApp } from '../../src/app.js';
+import { loadConfig } from '../../src/config/env.js';
+import { buildTestApp, downCheck, TEST_ENV, upCheck } from '../helpers/test-app.js';
 
 describe('health endpoints', () => {
   it('reports liveness with sandbox provider mode', async () => {
@@ -104,5 +107,28 @@ describe('security headers and CORS', () => {
 
     const denied = await request(buildTestApp()).get('/api/v1/health').set('Origin', 'https://evil.example');
     expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('answers the GitHub Pages preflight when CORS_ORIGINS was pasted with the repository path', async () => {
+    const app = buildTestApp({ env: { CORS_ORIGINS: 'https://maheshpcse.github.io/mini-payment-app/' } });
+    const res = await request(app)
+      .options('/api/v1/health/ready')
+      .set('Origin', 'https://maheshpcse.github.io')
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'x-request-id');
+    expect(res.status).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBe('https://maheshpcse.github.io');
+    expect(res.headers['access-control-allow-headers']).toContain('x-request-id');
+  });
+
+  it('logs a rejected origin once so misconfiguration is diagnosable', async () => {
+    const lines: string[] = [];
+    const logger = pino({ level: 'warn' }, { write: (line: string) => void lines.push(line) });
+    const app = createApp({ config: loadConfig(TEST_ENV), logger, version: 'test', readinessChecks: [] });
+    await request(app).get('/api/v1/health').set('Origin', 'https://maheshpcse.github.io');
+    await request(app).get('/api/v1/health').set('Origin', 'https://maheshpcse.github.io');
+    const warnings = lines.map((line) => JSON.parse(line)).filter((entry) => entry.msg.startsWith('CORS'));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ origin: 'https://maheshpcse.github.io', allowedOrigins: ['http://localhost:5173'] });
   });
 });

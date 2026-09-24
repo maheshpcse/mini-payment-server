@@ -21,6 +21,14 @@ describe('loadConfig', () => {
     expect(config.CORS_ORIGINS).toEqual(['https://a.example', 'https://b.example']);
   });
 
+  it('reduces origins pasted with a path, trailing slash or quotes to what browsers send', () => {
+    const config = loadConfig({
+      ...base,
+      CORS_ORIGINS: ' https://maheshpcse.github.io/mini-payment-app/ , "https://App.Example:8443/", https://maheshpcse.github.io',
+    });
+    expect(config.CORS_ORIGINS).toEqual(['https://maheshpcse.github.io', 'https://app.example:8443']);
+  });
+
   it('requires database URLs', () => {
     expect(() => loadConfig({})).toThrow(/MONGODB_URI[\s\S]*REDIS_URL/);
   });

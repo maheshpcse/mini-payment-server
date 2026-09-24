@@ -35,9 +35,23 @@ export function createApp({ config, logger, version, readinessChecks }: AppDepen
     }),
   );
   app.use(helmet());
+  const allowAnyOrigin = config.CORS_ORIGINS.includes('*');
+  const allowedOrigins = new Set(config.CORS_ORIGINS);
+  const reportedOrigins = new Set<string>();
   app.use(
     cors({
-      origin: config.CORS_ORIGINS.includes('*') ? true : config.CORS_ORIGINS,
+      origin(origin, callback) {
+        if (!origin || allowAnyOrigin || allowedOrigins.has(origin)) return callback(null, true);
+        // One warning per distinct origin (bounded) so a misconfigured CORS_ORIGINS is visible in the logs.
+        if (reportedOrigins.size < 50 && !reportedOrigins.has(origin)) {
+          reportedOrigins.add(origin);
+          logger.warn(
+            { origin: origin.slice(0, 200), allowedOrigins: config.CORS_ORIGINS },
+            'CORS: origin not allowed; add it to CORS_ORIGINS if it is a legitimate frontend',
+          );
+        }
+        return callback(null, false);
+      },
       credentials: true,
       exposedHeaders: [REQUEST_ID_HEADER],
     }),

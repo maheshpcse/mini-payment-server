@@ -1,13 +1,30 @@
 import { z } from 'zod';
 
-const csv = z
-  .string()
-  .transform((value) =>
+/**
+ * Browsers send `Origin` as scheme://host[:port] only, so an entry copied from
+ * the address bar (e.g. https://user.github.io/repo/) is reduced to its origin.
+ * Unparseable entries are kept verbatim for validation to report.
+ */
+export function normalizeOrigin(entry: string): string {
+  const unquoted = entry.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+  if (unquoted === '*') return unquoted;
+  try {
+    const url = new URL(unquoted);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.origin;
+  } catch {
+    // fall through
+  }
+  return unquoted;
+}
+
+const originList = z.string().transform((value) => [
+  ...new Set(
     value
       .split(',')
-      .map((entry) => entry.trim())
+      .map(normalizeOrigin)
       .filter(Boolean),
-  );
+  ),
+]);
 
 const envSchema = z
   .object({
@@ -16,7 +33,7 @@ const envSchema = z
     PAYMENT_PROVIDER_MODE: z.literal('sandbox').default('sandbox'),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-    CORS_ORIGINS: csv.default(['http://localhost:5173']),
+    CORS_ORIGINS: originList.default(['http://localhost:5173']),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
     REQUEST_BODY_LIMIT: z.string().regex(/^\d+(b|kb|mb)$/i).default('100kb'),
     MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//, 'must be a mongodb:// or mongodb+srv:// URI'),

@@ -18,7 +18,10 @@ async function main(): Promise<void> {
 
   // The HTTP server starts before dependencies connect so liveness/readiness can report outages.
   const server = app.listen(config.PORT, () => {
-    logger.info({ port: config.PORT, environment: config.APP_ENV, providerMode: config.PAYMENT_PROVIDER_MODE }, 'server listening');
+    logger.info(
+      { port: config.PORT, environment: config.APP_ENV, providerMode: config.PAYMENT_PROVIDER_MODE, corsOrigins: config.CORS_ORIGINS },
+      'server listening',
+    );
   });
   void mongo.connect();
   void redis.connect();

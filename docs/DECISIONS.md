@@ -41,3 +41,11 @@
 ## ADR-007 — MySQL deferred (24 Sep 2026)
 
 **Decision.** No MySQL container or code until a reporting requirement is confirmed (BE-031). If adopted, it is an asynchronous projection from domain events, never a synchronous dual write or a "backup" of MongoDB.
+
+## ADR-008 — Forward-only migrations own production indexes (24 Sep 2026)
+
+**Context.** Mongoose `autoIndex` builds indexes on model load, which is convenient locally but uncontrolled in production (unplanned index builds at deploy, no history).
+
+**Decision.** `src/migrations` holds ordered, append-only migrations run by `npm run migrate` (`migrate:prod` in the image) before the API starts. History lives in `migrations`; a `migration_locks` document with a 10-minute expiry prevents concurrent runs. Production runs with `autoIndex=false`; development and tests keep it on. Schema-declared indexes must match the migration that creates them (parity tested per module). Integration tests use a `mongodb-memory-server` 8.2.6 replica set (override with `MONGODB_TEST_URI`), one database per test file.
+
+**Consequences.** Index changes require a new migration; destructive changes (drops, backfills) are separate, reviewed migrations.

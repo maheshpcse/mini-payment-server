@@ -1,11 +1,7 @@
-import mongoose from 'mongoose';
 import type { Logger } from 'pino';
 import { withTimeout } from '../../../common/utils/with-timeout.js';
 import type { DependencyCheck } from '../../../modules/health/health.types.js';
-
-mongoose.set('strictQuery', true);
-// Casts untrusted filter objects so values such as { $ne: null } cannot act as operators.
-mongoose.set('sanitizeFilter', true);
+import { mongoose } from './mongoose.js';
 
 export interface MongoConnection {
   connect(): Promise<void>;

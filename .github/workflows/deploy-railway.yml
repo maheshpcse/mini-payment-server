@@ -1,0 +1,89 @@
+name: Deploy to Railway
+
+# Two ways to deploy; use one per service so a push is not deployed twice:
+#  - Railway GitHub autodeploy (dashboard), optionally with "Wait for CI".
+#  - This workflow: always runnable from Actions > Deploy to Railway > Run workflow; it also runs
+#    after a green Backend CI on main when the repository variable RAILWAY_DEPLOY_ON_CI is "true".
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Railway environment name
+        required: true
+        default: production
+  workflow_run:
+    workflows: [Backend CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy API to Railway
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && vars.RAILWAY_DEPLOY_ON_CI == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+      url: ${{ vars.RAILWAY_PUBLIC_URL }}
+    env:
+      # Project token (Railway > Project Settings > Tokens), scoped to one project + environment.
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE || 'mini-payment-server' }}
+      RAILWAY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
+      RAILWAY_PUBLIC_URL: ${{ vars.RAILWAY_PUBLIC_URL }}
+      # After CI, deploy exactly the commit that passed.
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Check deployment settings
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::Add the RAILWAY_TOKEN secret (a Railway project token) under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli@latest --no-fund --no-audit
+      - name: Build and deploy on Railway
+        # Railway builds the Dockerfile, runs the pre-deploy step (config check + migrations) and waits for
+        # /api/v1/health/ready before switching traffic; a failure there fails this step.
+        run: >-
+          railway up --ci
+          --service "$RAILWAY_SERVICE"
+          --environment "$RAILWAY_ENVIRONMENT"
+          --message "GitHub Actions ${DEPLOY_SHA::7} (run ${GITHUB_RUN_ID})"
+      - name: Verify public readiness
+        if: env.RAILWAY_PUBLIC_URL != ''
+        run: |
+          url="${RAILWAY_PUBLIC_URL%/}/api/v1/health/ready"
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if body=$(curl -fsS --max-time 10 "$url"); then
+              echo "$body"
+              exit 0
+            fi
+            echo "attempt $attempt: not ready yet"
+            sleep 10
+          done
+          echo "::error::$url did not return 200"
+          exit 1
+      - name: Deployment summary
+        if: always()
+        run: |
+          {
+            echo '### Railway deployment'
+            echo "- Service: \`$RAILWAY_SERVICE\` · Environment: \`$RAILWAY_ENVIRONMENT\` · Commit: \`${DEPLOY_SHA::7}\`"
+            if [ -n "$RAILWAY_PUBLIC_URL" ]; then echo "- Readiness: ${RAILWAY_PUBLIC_URL%/}/api/v1/health/ready"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

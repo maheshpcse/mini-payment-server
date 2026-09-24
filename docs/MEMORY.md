@@ -31,3 +31,13 @@ Update after every work session: what changed, checks actually run, limits, next
 **Open question (decide before BE-004 ships):** refresh-token cookie across `github.io` → `up.railway.app` is cross-site. Preferred: same-site custom domains with `SameSite=Lax`; fallback `SameSite=None; Secure; Partitioned` + Origin checks.
 
 **Next bounded task:** BE-004 (auth).
+
+## 24 September 2026 — Actions dispatch + Railway deploy workflow
+
+**Why:** the merged `ci.yml` had no `workflow_dispatch`, so GitHub showed no **Run workflow** button, and there was no Actions workflow that deploys the API (miniHrmsServer's `backend-ci.yml` has dispatch).
+
+**Done:** BE-033 — `Backend CI` (push/PR on main+master, Run workflow, step summary) and `Deploy to Railway` (`railway up --ci` via project token, readiness poll, opt-in auto-deploy after CI).
+
+**Checks run:** `actionlint` on all four workflows in both repos; Railway CLI 5.62.1 `up --help` flags; unauthenticated run fails fast. `npm run check` still green.
+
+**Not verified:** a real Railway deploy (needs `RAILWAY_TOKEN` and a provisioned project).

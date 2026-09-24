@@ -21,6 +21,7 @@ export const REDACTED_PATHS = [
   '*.apiKey',
   '*.privateKey',
   '*.cardNumber',
+  '*.accountNumber',
   '*.cvv',
 ];
 

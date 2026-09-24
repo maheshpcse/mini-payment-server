@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { createApp } from './app.js';
 import { createLogger } from './common/logging/logger.js';
+import { createRedisRateLimitStore } from './common/middleware/rate-limit.js';
 import { loadConfig } from './config/env.js';
 import { createMongoConnection } from './infrastructure/database/mongodb/connection.js';
 import { createRedisConnection } from './infrastructure/database/redis/connection.js';
@@ -14,7 +15,13 @@ async function main(): Promise<void> {
   const mongo = createMongoConnection({ uri: config.MONGODB_URI, autoIndex: config.NODE_ENV !== 'production', logger });
   const redis = createRedisConnection({ url: config.REDIS_URL, logger });
 
-  const app = createApp({ config, logger, version, readinessChecks: [mongo.readinessCheck, redis.readinessCheck] });
+  const app = createApp({
+    config,
+    logger,
+    version,
+    readinessChecks: [mongo.readinessCheck, redis.readinessCheck],
+    rateLimitStore: createRedisRateLimitStore(redis.client),
+  });
 
   // The HTTP server starts before dependencies connect so liveness/readiness can report outages.
   const server = app.listen(config.PORT, () => {

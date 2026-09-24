@@ -40,5 +40,11 @@ export function validateDeploymentEnv(source: NodeJS.ProcessEnv): string[] {
     errors.push('MONGODB_URI must use mongodb+srv:// or include replicaSet=… (transactions need a replica set)');
   }
   if (LOCAL_HOST.test(config.REDIS_URL)) errors.push('REDIS_URL must point to a hosted Redis, not localhost');
+  if (/SET-IN-RAILWAY|change-?me|example/i.test(config.JWT_SECRET) || new Set(config.JWT_SECRET).size < 12) {
+    errors.push('JWT_SECRET must be a random value (e.g. openssl rand -base64 48), not a placeholder');
+  }
+  if (config.REFRESH_COOKIE_SAMESITE !== 'none' && config.CORS_ORIGINS.some((origin) => origin.endsWith('.github.io'))) {
+    errors.push('REFRESH_COOKIE_SAMESITE must be none when the frontend is on github.io (a different site from the API)');
+  }
   return errors;
 }

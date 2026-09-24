@@ -39,6 +39,7 @@ Delivery order follows the master prompt: foundation → auth → ledger/payment
 | BE-029 | P1 | devops | Validate Docker image and compose stack | `docker compose up --build` reaches ready; replica set initializes; CI docker job green | CI run link + local compose log | BE-001 | Ready |
 | BE-030 | P2 | operations | Backup/restore drill | Documented `mongodump`/snapshot schedule; restore into isolated instance verified; RPO/RTO agreed | Restore log recorded in OBSERVABILITY.md | BE-010 | Planned |
 | BE-031 | P3 | reporting | Optional MySQL reporting projection | Async projection from domain events into reporting tables; never a synchronous dual write; forward migrations | Projection test on disposable MySQL | BE-013 | Planned |
+| BE-032 | P1 | devops | Railway deployment configuration | `railway.json` (Dockerfile build, pre-deploy validate + migrate, readiness health check, draining); `deploy:check`/`deploy:prepare` scripts rejecting non-production, non-HTTPS/path CORS origins, localhost or standalone MongoDB; PORT-aware image health check; CI runs `deploy-check` inside the image; `docs/DEPLOYMENT.md` | `tests/unit/deployment-config.test.ts`; `railway.json` validated against Railway's JSON schema; built `deploy:prepare` run against a replica set (twice, no-op) and a standalone mongod (rejected) | BE-003 | Done |
 
 ## Evidence
 

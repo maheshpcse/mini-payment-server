@@ -38,6 +38,8 @@ services:
 
   api:
     build: .
+    # Mirrors Railway: migrations run before the server starts.
+    command: ['sh', '-c', 'node dist/scripts/migrate.js && exec node dist/server.js']
     environment:
       NODE_ENV: production
       APP_ENV: development

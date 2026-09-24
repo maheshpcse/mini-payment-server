@@ -28,6 +28,8 @@ npm run dev                        # http://localhost:4000/api/v1/health
 
 Full stack in containers: `docker compose up --build`.
 
+Production: Railway (Docker) for this API, GitHub Pages for the app — see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Scripts
 
 | Command | Purpose |
@@ -35,7 +37,9 @@ Full stack in containers: `docker compose up --build`.
 | `npm run dev` | Watch mode with `tsx`, loads `.env` if present |
 | `npm run build` / `npm start` | Compile to `dist/` and run |
 | `npm run lint` / `npm run typecheck` | ESLint and TypeScript checks |
-| `npm test` | Vitest unit + HTTP integration tests (no database needed) |
+| `npm test` | Vitest unit + HTTP + database integration tests (starts an in-memory MongoDB 8.2.6 replica set; set `MONGODB_TEST_URI` to use your own) |
+| `npm run migrate` | Apply pending forward-only migrations (`migrate:prod` in the built image) |
+| `npm run deploy:check` / `deploy:prepare` | Hosted-deployment config validation / Railway pre-deploy (validate + migrate); run after `npm run build` |
 | `npm run check` | Everything CI runs except Docker and audit |
 
 ## Documentation

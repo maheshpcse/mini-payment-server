@@ -17,7 +17,9 @@
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "migrate": "tsx --env-file-if-exists=.env src/scripts/migrate.ts",
-    "migrate:prod": "node dist/scripts/migrate.js"
+    "migrate:prod": "node dist/scripts/migrate.js",
+    "deploy:check": "node dist/scripts/deploy-check.js",
+    "deploy:prepare": "node dist/scripts/deploy-prepare.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",

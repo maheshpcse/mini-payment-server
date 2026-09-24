@@ -19,3 +19,15 @@ Update after every work session: what changed, checks actually run, limits, next
 **Not verified:** Docker image build and Compose stack (no Docker in the build environment); CI has not run.
 
 **Next bounded task:** BE-003 (database test harness + migrations), then BE-004 (auth). BE-029 (Docker validation) can run in parallel on a Docker-capable machine.
+
+## 24 September 2026 — BE-003 and Railway deployment
+
+**Done:** BE-003 (in-memory replica-set test harness, forward-only migration runner with lock and history checks, ADR-008). BE-032 (Railway config as code, deploy check/prepare scripts, PORT-aware Docker health check, compose runs migrations first, CI image validation, `docs/DEPLOYMENT.md`) modelled on miniHrmsServer.
+
+**Checks run:** `npm run check` 92/92 tests; `railway.json` validated against `https://railway.com/railway.schema.json`; built `deploy:prepare` against the local replica set (applied, then no-op) and against a standalone mongod (rejected, exit 1); `deploy:check` with a development config lists every violation without values.
+
+**Not verified:** Docker build (no Docker here; CI covers it), any live Railway/Atlas deployment.
+
+**Open question (decide before BE-004 ships):** refresh-token cookie across `github.io` → `up.railway.app` is cross-site. Preferred: same-site custom domains with `SameSite=Lax`; fallback `SameSite=None; Secure; Partitioned` + Origin checks.
+
+**Next bounded task:** BE-004 (auth).

@@ -15,18 +15,17 @@ MiNi Payment is a **sandbox/demo** consumer payment platform that demonstrates r
 | OPERATIONS | Manages billers, limits, reconciliation views |
 | ADMIN | Manages roles and configuration |
 | AUDITOR | Read-only access to audit logs |
-| DEVELOPER | Accesses Developer Lab and diagnostics in non-production |
 | Sandbox provider | Simulated payment/bill/recharge/OTP provider with realistic delays and failures |
 
 ## Functional requirements
 
 | ID | Requirement | Task(s) | Status |
 | --- | --- | --- | --- |
-| R-01 | Versioned REST API under `/api/v1` with consistent success/error envelopes | BE-001 | Implemented (health only) |
-| R-02 | Register, login, logout, refresh rotation, logout-all, session expiry | BE-004 | Planned |
-| R-03 | OTP (email/phone verification, reset password) via provider abstraction | BE-007 | Planned |
+| R-01 | Versioned REST API under `/api/v1` with consistent success/error envelopes | BE-001 | Implemented |
+| R-02 | Register, login, logout, refresh rotation, logout-all, session expiry | BE-004 | Implemented |
+| R-03 | OTP (email/phone verification, reset password) via provider abstraction | BE-007 | Password reset implemented with a sandbox token; OTP and delivery planned |
 | R-04 | Transaction PIN setup/verify with lockout | BE-008 | Planned |
-| R-05 | Device and session management, revoke sessions | BE-009 | Planned |
+| R-05 | Device and session management, revoke sessions | BE-009 | Sessions list/revoke implemented; devices planned |
 | R-06 | RBAC + resource ownership on every protected route | BE-005 | Planned |
 | R-07 | Double-entry sandbox ledger; wallet balances derived from immutable entries | BE-010 | Planned |
 | R-08 | Payments with explicit state machine; server decides amount validity, sender, fee, status | BE-002, BE-012 | Domain implemented; API planned |
@@ -45,7 +44,7 @@ MiNi Payment is a **sandbox/demo** consumer payment platform that demonstrates r
 | R-21 | Security center APIs | BE-025 | Planned |
 | R-22 | User analytics | BE-026 | Planned |
 | R-23 | Append-only audit log separate from application logs | BE-006 | Planned |
-| R-24 | Developer Lab APIs isolated from payment domain | BE-028 | Planned |
+| R-24 | Profile, avatar, notification and payment preferences; sandbox bank accounts and UPI IDs | BE-034, BE-035 | Implemented |
 | R-25 | OpenAPI reflecting implemented routes; Swagger UI outside production | BE-001, BE-020 | Document served; UI planned |
 
 ## Non-functional requirements

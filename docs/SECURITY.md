@@ -20,6 +20,16 @@ Sandbox system: no real money, card data or bank credentials are handled. This d
 | Readiness hides dependency error details | `src/modules/health/health.routes.ts` | app test |
 | Non-root container user | `Dockerfile` | not executed yet (BE-029) |
 | Production dependency audit in CI | `.github/workflows/ci.yml` | CI not yet run |
+| Argon2id password hashing (19 MiB, t=2, p=1); dummy verify for unknown emails so timing does not reveal accounts | `src/common/security/password-hasher.ts` | `tests/integration/auth.test.ts` |
+| HS256 access JWT ≤ 15 min with `iss`/`aud`; `JWT_SECRET` required and non-placeholder when deployed; every request also checks the session is active | `src/common/security/tokens.ts`, `src/common/middleware/require-auth.ts`, `src/config/deployment.ts` | auth + deployment-config tests |
+| Opaque refresh token stored as SHA-256; atomic compare-and-swap rotation; replay of a previous token revokes the session | `src/modules/auth/auth.service.ts` | auth test (replay, concurrent refresh) |
+| Refresh cookie HttpOnly, `Path=/api/v1/auth`; `SameSite=None; Secure; Partitioned` when deployed; trusted-Origin check on cookie endpoints (CSRF) | `src/modules/auth/auth.routes.ts` | auth test |
+| Redis fixed-window rate limits per IP, per email hash and per user on auth routes; fail open with a warning if Redis is down | `src/common/middleware/rate-limit.ts` | `tests/unit/rate-limit.test.ts`, auth test |
+| No account enumeration: same login error, same forgot-password response, registration conflict does not name the field | auth service | auth test |
+| Password reset: 30-min single-use hashed token; reset revokes all sessions, change revokes all others | auth service | auth test |
+| Ownership: every account query is scoped to the caller; others' resources return 404 | users + payment-methods routes | accounts + auth tests |
+| Avatars: type by magic bytes, ≤ 512 KB, unguessable ids, `nosniff` | `src/modules/users/users.routes.ts` | accounts test |
+| Bank accounts: only last 4 + HMAC fingerprint stored; account numbers redacted from logs | `src/modules/payment-methods`, logger | accounts + logger tests |
 
 ## Sensitive data in logs
 
@@ -29,10 +39,8 @@ Never log: passwords, PINs, OTPs, access/refresh tokens, cookies, API keys, secr
 
 | Control | Design | Task |
 | --- | --- | --- |
-| Password hashing | Argon2id (memory-hard; parameters documented and benchmarked) | BE-004 |
-| Access tokens | JWT, ≤ 15 min, asymmetric or strong HMAC key from env/secret manager, `aud`/`iss` checked | BE-004 |
-| Refresh tokens | Opaque random, stored as SHA-256 hash, rotation on each use, family revocation on reuse, httpOnly Secure SameSite cookie | BE-004 |
-| Rate limiting | Redis-backed limits: auth (per IP + per account), OTP, payments | BE-004, BE-007, BE-012 |
+| Rate limiting | Redis-backed limits for OTP and payments | BE-007, BE-012 |
+| Signing key rotation | Key ids (`kid`) so `JWT_SECRET` can rotate without signing everyone out | BE-005 |
 | RBAC + ownership | Permission-based guards; ownership filters in repositories; 404 for others' resources | BE-005 |
 | Transaction PIN | Argon2id hash, lockout after 5 failures, audit | BE-008 |
 | OTP | Hashed, 5-min expiry, attempt limit, resend delay, single use | BE-007 |

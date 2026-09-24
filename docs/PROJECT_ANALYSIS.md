@@ -25,7 +25,9 @@ The repository contained only a one-line README. No prior code, dependencies, da
 | MongoDB and Redis connectivity | Implemented (connect, reconnect, readiness) | Manual smoke run recorded in TASKS BE-001 |
 | Docker image and compose | Written, **not executed** here | BE-029 |
 | CI workflow | Written, **not yet run** | `.github/workflows/ci.yml` |
-| Every business module (auth → developer lab) | **Not implemented** | TASKS BE-003 onward |
+| Auth, sessions, password reset, rate limiting | Implemented | `src/modules/auth`, `tests/integration/auth.test.ts` |
+| Profile, avatar, preferences, sandbox payment methods, wallet summary | Implemented | `src/modules/{users,payment-methods}`, `tests/integration/accounts.test.ts` |
+| Ledger, payments API, real-time, remaining modules | **Not implemented** | TASKS BE-005 onward |
 
 ## Requirement interpretation and unknowns
 

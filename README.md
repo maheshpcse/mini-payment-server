@@ -6,14 +6,16 @@ Architecture: **TypeScript + Express 5 modular monolith**, **MongoDB** (primary 
 
 ## Status
 
-Foundation stage only. What exists today is listed in [docs/MEMORY.md](docs/MEMORY.md); planned work with acceptance criteria is in [TASKS.md](TASKS.md).
+Foundation plus authentication and accounts. What exists today is listed in [docs/MEMORY.md](docs/MEMORY.md); planned work with acceptance criteria is in [TASKS.md](TASKS.md).
 
 | Implemented | Not implemented yet |
 | --- | --- |
-| Config validation, structured logging with redaction, request ids, error contract, Helmet/CORS, body limits, NoSQL operator-key rejection | Auth, users, sessions, PIN, OTP |
-| `GET /api/v1/health`, `GET /api/v1/health/ready`, `GET /api/v1/openapi.json` | Ledger, wallets, payments API, idempotency storage |
+| Config validation, structured logging with redaction, request ids, error contract, Helmet/CORS, body limits, NoSQL operator-key rejection | PIN, OTP, email/phone verification |
+| Auth: register, login, refresh rotation with replay detection, logout(-all), forgot/reset/change password, sessions; Redis rate limiting | Roles/permissions (BE-005), audit log |
+| Profile, avatars, notification/payment preferences, sandbox bank accounts and UPI IDs | Email/SMS/push delivery (BE-015) |
+| `GET /api/v1/health`, `GET /api/v1/health/ready`, `GET /api/v1/openapi.json` | Ledger-backed wallet balance, payments API, idempotency storage |
 | Money helpers (integer minor units) and payment state machine (domain only) | Socket.IO, queues, notifications, webhooks, all other modules |
-| MongoDB/Redis connection management with readiness | Rate limiting (needs Redis store, see BE-004) |
+| MongoDB/Redis connection management with readiness; migrations | |
 
 ## Quick start
 

@@ -1,6 +1,6 @@
 import { mongoose } from '../../infrastructure/database/mongodb/mongoose.js';
 
-export const USER_ROLES = ['USER', 'SUPPORT', 'OPERATIONS', 'ADMIN', 'AUDITOR', 'DEVELOPER'] as const;
+export const USER_ROLES = ['USER', 'SUPPORT', 'OPERATIONS', 'ADMIN', 'AUDITOR'] as const;
 
 /** Sandbox caps; real limits would come from risk and compliance rules (BE-022). */
 export const PAYMENT_LIMIT_CEILINGS = { perTransactionMinor: 10_000_000, dailyMinor: 20_000_000 } as const;

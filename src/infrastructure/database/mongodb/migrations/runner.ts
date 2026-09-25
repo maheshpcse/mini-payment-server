@@ -1,7 +1,15 @@
 import type { Logger } from 'pino';
+import { createPasswordHasher, type PasswordHasher } from '../../../../common/security/password-hasher.js';
 import type { mongoose } from '../mongoose.js';
 
 type Db = mongoose.mongo.Db;
+
+export interface MigrationContext {
+  appEnv: 'local' | 'development' | 'test' | 'staging' | 'production';
+  /** Same key the API uses for payment-method fingerprints, so seeded rows dedupe like user-created ones. */
+  fingerprintSecret: string;
+  hasher: PasswordHasher;
+}
 
 /**
  * Forward-only migration. `up` must be safe to re-run after a partial failure
@@ -11,7 +19,7 @@ type Db = mongoose.mongo.Db;
 export interface Migration {
   version: number;
   name: string;
-  up(db: Db): Promise<void>;
+  up(db: Db, context: MigrationContext): Promise<void>;
 }
 
 export interface MigrationRecord {
@@ -72,12 +80,18 @@ export async function runMigrations(options: {
   db: Db;
   migrations: readonly Migration[];
   logger: Logger;
+  context?: Partial<MigrationContext>;
   now?: () => Date;
 }): Promise<{ applied: string[]; alreadyApplied: number }> {
   const { db, logger } = options;
   const now = options.now ?? (() => new Date());
   const migrations = validateMigrations(options.migrations);
   const history = db.collection<MigrationRecord>(MIGRATIONS_COLLECTION);
+  const context: MigrationContext = {
+    appEnv: options.context?.appEnv ?? 'local',
+    fingerprintSecret: options.context?.fingerprintSecret ?? 'local-migration-fingerprint-secret',
+    hasher: options.context?.hasher ?? createPasswordHasher(),
+  };
 
   await acquireLock(db, now());
   try {
@@ -99,7 +113,7 @@ export async function runMigrations(options: {
       const label = `${String(migration.version).padStart(4, '0')}-${migration.name}`;
       const startedAt = Date.now();
       logger.info({ migration: label }, 'applying migration');
-      await migration.up(db);
+      await migration.up(db, context);
       await history.insertOne({
         version: migration.version,
         name: migration.name,

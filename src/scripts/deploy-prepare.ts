@@ -9,7 +9,12 @@ async function main(): Promise<void> {
   if (errors.length > 0) throw new Error(`Deployment configuration invalid:\n- ${errors.join('\n- ')}`);
   const config = loadConfig();
   const logger = createLogger({ level: config.LOG_LEVEL, pretty: false });
-  await applyMigrations({ uri: config.MONGODB_URI, logger, requireReplicaSet: true });
+  await applyMigrations({
+    uri: config.MONGODB_URI,
+    logger,
+    requireReplicaSet: true,
+    context: { appEnv: config.APP_ENV, fingerprintSecret: config.JWT_SECRET },
+  });
 }
 
 main().catch((err: unknown) => {

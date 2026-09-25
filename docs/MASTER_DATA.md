@@ -12,6 +12,7 @@ a public reference value (currencies, IFSC bank codes) or invented. No real acco
 |---|---|---|
 | `0002-reference-data` | Collections and indexes for `permissions`, `roles`, `menus`, `master_data`, `entities`, then `syncReferenceData()` upserts every row from the data files | all |
 | `0003-demo-accounts` | Demo users (`isDemo: true`) and their sandbox payment methods | consumer demos everywhere; staff demos only in `local`, `development`, `test` |
+| `0004-usernames` | Unique `username` index; demo accounts get the usernames below; any other account without one gets its email name (made valid, with a number added if taken or reserved) | all |
 
 Run them with `npm run migrate` locally (reads `.env`) or `npm run deploy:prepare` on Railway (runs automatically before each deploy).
 Both pass `APP_ENV` and `JWT_SECRET` to the migrations: `APP_ENV` decides which demo accounts are created, and
@@ -39,14 +40,16 @@ clients and a future admin console can display them.
 
 Password for every demo account: **`MiniPay@2026`**. It is published on purpose.
 
-| Name | Email | Password | Roles | Seeded in | Linked methods |
-|---|---|---|---|---|---|
-| Priya Sharma | `demo@example.com` | `MiniPay@2026` | USER | all environments | UPI `priya.demo@okhdfcbank`; HDFC0001234 savings •••• 6789 |
-| Rahul Verma | `demo.friend@example.com` | `MiniPay@2026` | USER | all environments | UPI `rahul.demo@oksbi` |
-| Anita Admin | `admin.demo@example.com` | `MiniPay@2026` | USER, ADMIN | local, development, test | — |
-| Sanjay Support | `support.demo@example.com` | `MiniPay@2026` | USER, SUPPORT | local, development, test | — |
-| Owen Operations | `operations.demo@example.com` | `MiniPay@2026` | USER, OPERATIONS | local, development, test | — |
-| Aisha Auditor | `auditor.demo@example.com` | `MiniPay@2026` | USER, AUDITOR | local, development, test | — |
+Sign in with either the email or the username.
+
+| Name | Email | Username | Password | Roles | Seeded in | Linked methods |
+|---|---|---|---|---|---|---|
+| Priya Sharma | `demo@example.com` | `priya.demo` | `MiniPay@2026` | USER | all environments | UPI `priya.demo@okhdfcbank`; HDFC0001234 savings •••• 6789 |
+| Rahul Verma | `demo.friend@example.com` | `rahul.demo` | `MiniPay@2026` | USER | all environments | UPI `rahul.demo@oksbi` |
+| Anita Admin | `admin.demo@example.com` | `admin.demo` | `MiniPay@2026` | USER, ADMIN | local, development, test | — |
+| Sanjay Support | `support.demo@example.com` | `support.demo` | `MiniPay@2026` | USER, SUPPORT | local, development, test | — |
+| Owen Operations | `operations.demo@example.com` | `operations.demo` | `MiniPay@2026` | USER, OPERATIONS | local, development, test | — |
+| Aisha Auditor | `auditor.demo@example.com` | `auditor.demo` | `MiniPay@2026` | USER, AUDITOR | local, development, test | — |
 
 Demo accounts are shared by everyone who uses them, so the API turns off anything that would let one visitor
 lock others out or see their activity:

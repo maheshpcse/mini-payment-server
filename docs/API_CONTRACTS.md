@@ -59,6 +59,7 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | `AUTH_INVALID_CREDENTIALS` | 401 | Login failed (no user enumeration) |
 | `AUTH_SESSION_EXPIRED` | 401 | Refresh token missing, expired, revoked or replayed; access token's session ended |
 | `AUTH_REGISTRATION_CONFLICT` | 409 | Email or phone already registered (does not say which) |
+| `USERNAME_UNAVAILABLE` | 409 | Username taken (register or profile update); `details[0].path` is `username`. Usernames are public handles, so naming this field leaks nothing |
 | `AUTH_RESET_TOKEN_INVALID` | 400 | Reset token unknown, used or expired |
 | `DEMO_ACCOUNT_RESTRICTED` | 403 | Shared demo account cannot change password, profile, avatar or sessions |
 | `PROFILE_PHONE_UNAVAILABLE` | 409 | Phone number belongs to another account |
@@ -83,8 +84,8 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | GET | `/health` | none | 200 `{data:{status:"ok",service,version,environment,providerMode:"sandbox",uptimeSeconds}}` |
 | GET | `/health/ready` | none | 200 `{data:{status:"ready",dependencies:[{name,status:"up",latencyMs}]}}` or 503 with `status:"not_ready"` |
 | GET | `/openapi.json` | none | OpenAPI 3.1 document |
-| POST | `/auth/register` | none | 201 session grant `{accessToken, tokenType, expiresIn, user}` + refresh cookie. Rate limit 10/h per IP |
-| POST | `/auth/login` | none | 200 session grant + cookie. 50/15 min per IP, 10/15 min per email (demo emails exempt from the email bucket) |
+| POST | `/auth/register` | none | Body `firstName, lastName, username, email, phone?, password`. 201 `{user}` only: **no session or cookie**, the client sends the user to sign in. Rate limit 10/h per IP |
+| POST | `/auth/login` | none | Body `{identifier, password}`; `identifier` is the email if it contains `@`, otherwise the username (case-insensitive). The older `{email, password}` body is still accepted. 200 session grant `{accessToken, tokenType, expiresIn, user}` + cookie. 50/15 min per IP, 10/15 min per typed identifier (demo emails and usernames exempt from that bucket) |
 | POST | `/auth/refresh` | cookie + trusted Origin | 200 session grant; rotates the cookie. 120/min per IP |
 | POST | `/auth/logout` | cookie + trusted Origin | 204; revokes the session, clears the cookie |
 | POST | `/auth/logout-all` | bearer | 204; revokes every session |
@@ -92,7 +93,7 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | POST | `/auth/password/reset` | none | 204; single-use 30-min token, revokes all sessions |
 | POST | `/auth/password/change` | bearer | 204; revokes every other session. 10/15 min per user |
 | GET / DELETE | `/auth/sessions`, `/auth/sessions/:sessionId` | bearer | Own active sessions (`id`, `userAgent`, `createdAt`, `lastUsedAt`, `current`) / revoke one (404 if not owned) |
-| GET / PATCH | `/users/me` | bearer | User DTO (`initials`, `fullName`, `avatarUrl`); PATCH `firstName`, `lastName`, `phone` (email and roles are not writable) |
+| GET / PATCH | `/users/me` | bearer | User DTO (`initials`, `fullName`, `avatarUrl`); PATCH `firstName`, `lastName`, `username`, `phone` (email and roles are not writable) |
 | PUT / DELETE | `/users/me/avatar` | bearer | Raw PNG/JPEG/WebP body ≤ 512 KB → updated user / 200 without avatar |
 | GET | `/avatars/:avatarId` | none | Image bytes; `Cross-Origin-Resource-Policy: cross-origin`, immutable caching (ids are unguessable and change on every upload) |
 | GET / PATCH | `/users/me/preferences` | bearer | Notification channels (push, email, sms), events (security locked on), payment limits (≤ server ceilings, per-transaction ≤ daily), `hideBalance` |
@@ -104,7 +105,7 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | GET | `/menus` | bearer | `{data:{roles, permissions, menus:[{id,label,path,icon,group,order,permission,status,task,description}]}}` filtered by the caller's roles |
 | GET | `/entities?type=BILLER` | bearer | Active sandbox merchants, billers and telecom operators |
 
-The user DTO includes `isDemo`. Demo accounts get `403 DEMO_ACCOUNT_RESTRICTED` from password change, logout-all, session revoke, `PATCH /users/me` and avatar upload/removal; `GET /auth/sessions` returns only the current session; forgot-password creates no token. Credentials and data: [MASTER_DATA.md](MASTER_DATA.md).
+The user DTO includes `username` and `isDemo`. Usernames: 3–30 characters, lowercase letters, digits and single `.`/`_` between them, starting with a letter; staff/product words (`admin`, `support`, `minipay`, …) and demo handles are reserved. Demo accounts get `403 DEMO_ACCOUNT_RESTRICTED` from password change, logout-all, session revoke, `PATCH /users/me` and avatar upload/removal; `GET /auth/sessions` returns only the current session; forgot-password creates no token. Credentials and data: [MASTER_DATA.md](MASTER_DATA.md).
 
 ## Planned endpoints (not implemented)
 

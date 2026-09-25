@@ -29,7 +29,7 @@ npm run migrate                    # indexes, reference data and demo logins
 npm run dev                        # http://localhost:4000/api/v1/health
 ```
 
-Demo login: `demo@example.com` / `MiniPay@2026`. All demo accounts, including the local-only staff ones, are listed in [docs/MASTER_DATA.md](docs/MASTER_DATA.md#demo-logins).
+Demo login: `demo@example.com` (or username `priya.demo`) / `MiniPay@2026`. All demo accounts, including the local-only staff ones, are listed in [docs/MASTER_DATA.md](docs/MASTER_DATA.md#demo-logins).
 
 Full stack in containers: `docker compose up --build`.
 

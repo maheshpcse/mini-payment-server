@@ -13,7 +13,7 @@ Implemented collections are listed first and match the Mongoose schemas and migr
 
 | Collection | Key fields | Indexes | Task |
 | --- | --- | --- | --- |
-| `users` | publicId, email, phone?, firstName, lastName, passwordHash, passwordChangedAt?, roles[], status (ACTIVE/DISABLED), avatar {avatarId, contentType, updatedAt}?, preferences {notifications {channels, events}, payments {perTransactionLimitMinor, dailyLimitMinor, hideBalance}}, isDemo (shared demo login, see MASTER_DATA.md) | unique publicId, unique email, unique phone (partial) | BE-004, BE-034, BE-036 |
+| `users` | publicId, email, username (lowercase handle, see API_CONTRACTS), phone?, firstName, lastName, passwordHash, passwordChangedAt?, roles[], status (ACTIVE/DISABLED), avatar {avatarId, contentType, updatedAt}?, preferences {notifications {channels, events}, payments {perTransactionLimitMinor, dailyLimitMinor, hideBalance}}, isDemo (shared demo login, see MASTER_DATA.md) | unique publicId, unique email, unique username (partial), unique phone (partial) | BE-004, BE-034, BE-036, BE-037 |
 | `avatars` | avatarId, userId, contentType, data (binary, ≤ 512 KB), size, createdAt (no updatedAt) | unique avatarId, userId | BE-034 |
 | `sessions` | sessionId, userId, refreshTokenHash, previousTokenHashes[≤5], userAgent, createdAt, lastUsedAt, expiresAt, revokedAt?, revokeReason? (one document per refresh-token family; looked up by the `ses_` id embedded in the token) | unique sessionId, userId+revokedAt, TTL on expiresAt | BE-004, BE-009 |
 | `password_resets` | tokenHash, userId, createdAt, expiresAt, usedAt? | unique tokenHash, userId, TTL on expiresAt | BE-004 |

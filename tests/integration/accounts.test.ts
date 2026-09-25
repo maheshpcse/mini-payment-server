@@ -10,10 +10,12 @@ const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a
 const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.alloc(32, 2)]);
 
 async function signUp(app = buildTestApp(), email = 'asha@example.com', firstName = 'Asha') {
-  const res = await request(app)
+  const password = 'correct horse battery';
+  const created = await request(app)
     .post('/api/v1/auth/register')
-    .send({ firstName, lastName: 'Verma', email, password: 'correct horse battery' });
-  expect(res.status).toBe(201);
+    .send({ firstName, lastName: 'Verma', username: email.split('@')[0], email, password });
+  expect(created.status).toBe(201);
+  const res = await request(app).post('/api/v1/auth/login').send({ identifier: email, password });
   return { app, auth: { Authorization: `Bearer ${res.body.data.accessToken as string}` } };
 }
 
@@ -39,6 +41,23 @@ describe('profile', () => {
     const taken = await request(app).patch('/api/v1/users/me').set(ravi.auth).send({ phone: '9876543210' });
     expect(taken.status).toBe(409);
     expect(taken.body.error.code).toBe('PROFILE_PHONE_UNAVAILABLE');
+  });
+
+  it('changes the username, which then works for sign-in, and refuses taken or reserved ones', async () => {
+    const app = buildTestApp();
+    const asha = await signUp(app);
+    const ravi = await signUp(app, 'ravi@example.com', 'Ravi');
+
+    const renamed = await request(app).patch('/api/v1/users/me').set(asha.auth).send({ username: 'Asha.V' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.data.username).toBe('asha.v');
+    const login = await request(app).post('/api/v1/auth/login').send({ identifier: 'asha.v', password: 'correct horse battery' });
+    expect(login.status).toBe(200);
+
+    const taken = await request(app).patch('/api/v1/users/me').set(ravi.auth).send({ username: 'ASHA.V' });
+    expect(taken.status).toBe(409);
+    expect(taken.body.error).toMatchObject({ code: 'USERNAME_UNAVAILABLE', details: [{ path: 'username' }] });
+    expect((await request(app).patch('/api/v1/users/me').set(ravi.auth).send({ username: 'root' })).status).toBe(400);
   });
 });
 

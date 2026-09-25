@@ -58,18 +58,28 @@ const DEMO = 'DEMO_ACCOUNT_RESTRICTED: shared demo accounts cannot make this cha
 const authPaths = {
   '/auth/register': {
     post: op(
-      'Create an account and start a session',
+      'Create an account (no session: sign in afterwards)',
       'auth',
-      { '201': 'Access token + user; refresh token set as HttpOnly cookie', '400': 'Validation failed', '409': 'Account cannot be created', '429': 'Rate limited' },
-      { body: obj({ firstName: str, lastName: str, email: str, phone: str, password: str }, ['firstName', 'lastName', 'email', 'password']) },
+      {
+        '201': '`{ user }`; no tokens or cookie are issued',
+        '400': 'Validation failed',
+        '409': 'USERNAME_UNAVAILABLE (details on `username`) or AUTH_REGISTRATION_CONFLICT (email/phone, deliberately unspecific)',
+        '429': 'Rate limited',
+      },
+      { body: obj({ firstName: str, lastName: str, username: str, email: str, phone: str, password: str }, ['firstName', 'lastName', 'username', 'email', 'password']) },
     ),
   },
   '/auth/login': {
     post: op(
-      'Sign in with email and password',
+      'Sign in with email or username and password',
       'auth',
-      { '200': 'Access token + user; refresh cookie set', '401': 'Invalid credentials', '429': 'Rate limited' },
-      { body: obj({ email: str, password: str }) },
+      { '200': 'Access token + user; refresh cookie set', '400': 'Validation failed', '401': 'Invalid credentials', '429': 'Rate limited' },
+      {
+        body: {
+          ...obj({ identifier: { ...str, description: 'Email (contains "@") or username' }, email: { ...str, deprecated: true, description: 'Older clients; same as `identifier`' }, password: str }, ['password']),
+          oneOf: [{ required: ['identifier'] }, { required: ['email'] }],
+        },
+      },
     ),
   },
   '/auth/refresh': {
@@ -115,10 +125,10 @@ const userPaths = {
   '/users/me': {
     get: op('Current user profile', 'users', { '200': 'Profile' }, { auth: true }),
     patch: op(
-      'Update first name, last name or mobile number',
+      'Update first name, last name, username or mobile number',
       'users',
-      { '200': 'Updated profile', '400': 'Validation failed', '403': DEMO, '409': 'Mobile number unavailable' },
-      { auth: true, body: obj({ firstName: str, lastName: str, phone: { type: ['string', 'null'] } }, []) },
+      { '200': 'Updated profile', '400': 'Validation failed', '403': DEMO, '409': 'USERNAME_UNAVAILABLE or PROFILE_PHONE_UNAVAILABLE' },
+      { auth: true, body: obj({ firstName: str, lastName: str, username: str, phone: { type: ['string', 'null'] } }, []) },
     ),
   },
   '/users/me/avatar': {

@@ -12,7 +12,9 @@ const PASSWORD = 'correct horse battery';
 const NEW_PASSWORD = 'staple window orbit 42';
 
 function registration(overrides: Record<string, unknown> = {}) {
-  return { firstName: 'Asha', lastName: 'Verma', email: 'asha@example.com', password: PASSWORD, ...overrides };
+  const email = typeof overrides.email === 'string' ? overrides.email : 'asha@example.com';
+  const username = email.trim().split('@')[0]!.toLowerCase();
+  return { firstName: 'Asha', lastName: 'Verma', username, email: 'asha@example.com', password: PASSWORD, ...overrides };
 }
 
 function refreshCookieFrom(res: request.Response): string | undefined {
@@ -24,21 +26,35 @@ function cookieValue(setCookie: string): string {
   return setCookie.split(';')[0]!;
 }
 
+/** Registers, then signs in (registration itself never starts a session). */
 async function register(app = buildTestApp(), overrides: Record<string, unknown> = {}) {
-  const res = await request(app).post('/api/v1/auth/register').send(registration(overrides));
-  expect(res.status).toBe(201);
-  return { app, res, accessToken: res.body.data.accessToken as string, cookie: cookieValue(refreshCookieFrom(res)!) };
+  const body = registration(overrides);
+  const created = await request(app).post('/api/v1/auth/register').send(body);
+  expect(created.status).toBe(201);
+  const res = await request(app).post('/api/v1/auth/login').send({ identifier: body.email, password: body.password });
+  expect(res.status).toBe(200);
+  return { app, created, res, accessToken: res.body.data.accessToken as string, cookie: cookieValue(refreshCookieFrom(res)!) };
 }
 
 describe('registration', () => {
-  it('creates the user, returns an access token and sets an HttpOnly refresh cookie scoped to /api/v1/auth', async () => {
+  it('creates the user without starting a session', async () => {
+    const res = await request(buildTestApp()).post('/api/v1/auth/register').send(registration());
+    expect(res.status).toBe(201);
+    expect(res.body.data).toEqual({ user: expect.objectContaining({ username: 'asha', email: 'asha@example.com', isDemo: false }) });
+    expect(res.body.data.user.id).toMatch(/^usr_[a-f0-9]{20}$/);
+    expect(res.body.data).not.toHaveProperty('accessToken');
+    expect(refreshCookieFrom(res)).toBeUndefined();
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(await SessionModel.countDocuments({})).toBe(0);
+  });
+
+  it('signing in afterwards returns an access token and sets an HttpOnly refresh cookie scoped to /api/v1/auth', async () => {
     const { app, res, accessToken } = await register();
     expect(res.body.data).toMatchObject({
       tokenType: 'Bearer',
       expiresIn: 900,
-      user: { firstName: 'Asha', lastName: 'Verma', fullName: 'Asha Verma', initials: 'AV', email: 'asha@example.com', avatarUrl: null },
+      user: { firstName: 'Asha', lastName: 'Verma', fullName: 'Asha Verma', initials: 'AV', username: 'asha', email: 'asha@example.com', avatarUrl: null },
     });
-    expect(res.body.data.user.id).toMatch(/^usr_[a-f0-9]{20}$/);
     expect(res.body.data).not.toHaveProperty('refreshToken');
     expect(res.headers['cache-control']).toBe('no-store');
     const cookie = refreshCookieFrom(res)!;
@@ -56,8 +72,27 @@ describe('registration', () => {
   });
 
   it('normalizes email and Indian mobile numbers', async () => {
-    const { res } = await register(buildTestApp(), { email: '  Asha@Example.COM ', phone: '+91 98765-43210' });
-    expect(res.body.data.user).toMatchObject({ email: 'asha@example.com', phone: '+919876543210' });
+    const { created } = await register(buildTestApp(), { email: '  Asha@Example.COM ', phone: '+91 98765-43210', username: ' Asha_V ' });
+    expect(created.body.data.user).toMatchObject({ email: 'asha@example.com', phone: '+919876543210', username: 'asha_v' });
+  });
+
+  it('says when a username is taken, but not when an email is', async () => {
+    const app = buildTestApp();
+    await register(app);
+    const username = await request(app).post('/api/v1/auth/register').send(registration({ email: 'other@example.com', username: 'ASHA' }));
+    expect(username.status).toBe(409);
+    expect(username.body.error).toMatchObject({ code: 'USERNAME_UNAVAILABLE', details: [{ path: 'username' }] });
+  });
+
+  it('validates usernames and reserves staff, product and demo handles', async () => {
+    const app = buildTestApp();
+    for (const username of ['ab', '1asha', 'asha..v', 'asha.', 'asha v', 'a'.repeat(31), 'admin', 'support', 'priya.demo']) {
+      const res = await request(app).post('/api/v1/auth/register').send(registration({ username }));
+      expect(res.status, username).toBe(400);
+      expect(res.body.error.details.map((detail: { path: string }) => detail.path), username).toContain('username');
+    }
+    const missing = await request(app).post('/api/v1/auth/register').send({ ...registration(), username: undefined });
+    expect(missing.status).toBe(400);
   });
 
   it('rejects duplicate accounts without saying which field collided', async () => {
@@ -71,16 +106,18 @@ describe('registration', () => {
   it('validates names, email and password strength', async () => {
     const res = await request(buildTestApp())
       .post('/api/v1/auth/register')
-      .send({ firstName: '1', lastName: '', email: 'nope', password: 'short' });
+      .send({ firstName: '1', lastName: '', username: 'x', email: 'nope', password: 'short' });
     expect(res.status).toBe(400);
     const paths = res.body.error.details.map((detail: { path: string }) => detail.path);
-    expect(paths).toEqual(expect.arrayContaining(['firstName', 'lastName', 'email', 'password']));
+    expect(paths).toEqual(expect.arrayContaining(['firstName', 'lastName', 'username', 'email', 'password']));
   });
 
-  it('rejects passwords containing the email name and unknown fields', async () => {
+  it('rejects passwords containing the email name or username, and unknown fields', async () => {
     const app = buildTestApp();
     const weak = await request(app).post('/api/v1/auth/register').send(registration({ password: 'my-asha-password' }));
     expect(weak.status).toBe(400);
+    const handle = await request(app).post('/api/v1/auth/register').send(registration({ username: 'moonbeam', password: 'my-moonbeam-pw' }));
+    expect(handle.body.error.details).toEqual([{ path: 'password', message: 'must not contain your username' }]);
     const extra = await request(app).post('/api/v1/auth/register').send(registration({ roles: ['ADMIN'] }));
     expect(extra.status).toBe(400);
   });
@@ -103,7 +140,28 @@ describe('login', () => {
     expect(unknown.body.error).toMatchObject({ code: wrong.body.error.code, message: wrong.body.error.message });
   });
 
-  it('rate limits repeated attempts for one email with Retry-After', async () => {
+  it('accepts the email or the username (any case) as the identifier, and the legacy email field', async () => {
+    const app = buildTestApp();
+    await register(app);
+    for (const identifier of ['asha@example.com', ' ASHA@example.com', 'asha', 'Asha ']) {
+      const res = await request(app).post('/api/v1/auth/login').send({ identifier, password: PASSWORD });
+      expect(res.status, identifier).toBe(200);
+      expect(res.body.data.user.username).toBe('asha');
+    }
+    expect((await request(app).post('/api/v1/auth/login').send({ email: 'asha@example.com', password: PASSWORD })).status).toBe(200);
+
+    const wrong = await request(app).post('/api/v1/auth/login').send({ identifier: 'asha', password: 'wrong password!' });
+    const unknown = await request(app).post('/api/v1/auth/login').send({ identifier: 'nobody', password: 'wrong password!' });
+    expect(wrong.status).toBe(401);
+    expect(unknown.body.error.code).toBe('AUTH_INVALID_CREDENTIALS');
+
+    const missing = await request(app).post('/api/v1/auth/login').send({ password: PASSWORD });
+    expect(missing.body.error.details).toEqual([{ path: 'identifier', message: 'is required' }]);
+    const badEmail = await request(app).post('/api/v1/auth/login').send({ identifier: 'asha@', password: PASSWORD });
+    expect(badEmail.status).toBe(400);
+  });
+
+  it('rate limits repeated attempts for one email or username with Retry-After', async () => {
     const app = buildTestApp({ rateLimitStore: createMemoryRateLimitStore() });
     for (let attempt = 0; attempt < 10; attempt += 1) {
       await request(app).post('/api/v1/auth/login').send({ email: 'target@example.com', password: 'guess-guess' });
@@ -112,6 +170,11 @@ describe('login', () => {
     expect(blocked.status).toBe(429);
     expect(blocked.body.error.code).toBe('RATE_LIMITED');
     expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await request(app).post('/api/v1/auth/login').send({ identifier: 'target', password: 'guess-guess' });
+    }
+    expect((await request(app).post('/api/v1/auth/login').send({ identifier: 'TARGET', password: 'guess-guess' })).status).toBe(429);
   });
 });
 
@@ -159,8 +222,7 @@ describe('refresh rotation', () => {
   });
 
   it('uses SameSite=None; Secure; Partitioned cookies for cross-site deployments', async () => {
-    const app = buildTestApp({ env: { REFRESH_COOKIE_SAMESITE: 'none' } });
-    const res = await request(app).post('/api/v1/auth/register').send(registration());
+    const { res } = await register(buildTestApp({ env: { REFRESH_COOKIE_SAMESITE: 'none' } }));
     const cookie = refreshCookieFrom(res)!;
     expect(cookie).toMatch(/SameSite=None/i);
     expect(cookie).toMatch(/Secure/i);

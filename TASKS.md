@@ -43,6 +43,7 @@ Delivery order follows the master prompt: foundation → auth → ledger/payment
 | BE-034 | P1 | users | Profile, avatar and preferences | `GET/PATCH /users/me` (names, phone; email read-only); avatar PUT/DELETE (PNG/JPEG/WebP by magic bytes, ≤ 512 KB) served from `/avatars/:id`; notification channel/event and payment preferences with server ceilings | `tests/integration/accounts.test.ts` | BE-004 | Done |
 | BE-035 | P1 | payment-methods | Sandbox bank accounts and UPI IDs | Bank accounts stored as last 4 + HMAC fingerprint (no full number), bank derived from IFSC; UPI VPA validation; duplicates rejected; max 10; default promotion; `GET /wallets/me` summary until the ledger (BE-010) exists | `tests/integration/accounts.test.ts` | BE-004 | Done |
 | BE-036 | P1 | reference-data | Master/reference data and demo logins | Roles, permissions, menus, master data and sandbox entities as code-owned data files seeded by migration `0002` (idempotent sync); demo logins by migration `0003` (staff demos never in staging/production); `GET /masters`, `/menus`, `/entities`; demo accounts cannot change password/profile/sessions; `docs/MASTER_DATA.md` | `tests/integration/reference-data.test.ts`, `tests/integration/migrations.test.ts` | BE-003, BE-004 | Done |
+| BE-037 | P1 | auth | Usernames and sign-in by email or username; register without auto-login | `username` on users (unique, lowercase, reserved words and demo handles blocked), required at registration, editable via `PATCH /users/me`; migration `0004` backfills existing users and demo handles; `POST /auth/login` takes `identifier` (email or username; legacy `email` still accepted); per-identifier rate-limit bucket with demo exemption; `USERNAME_UNAVAILABLE`; `POST /auth/register` returns `{user}` without a session | `tests/integration/auth.test.ts`, `accounts.test.ts`, `reference-data.test.ts`, `migrations.test.ts` | BE-004, BE-036 | Done |
 
 ## Evidence
 
@@ -66,6 +67,12 @@ Delivery order follows the master prompt: foundation → auth → ledger/payment
 - `tests/integration/migrations.test.ts`: migration 0001 creates exactly the model indexes.
 - Built server against local MongoDB replica set + Redis, exercised from the web app in headless Chrome (sign in, avatar upload, UPI + bank link, settings, sign out).
 - **Not done (at the time):** OTP and email/phone verification (BE-007), real reset-email delivery (sandbox token is returned only when `APP_ENV` is `local`/`test`), roles/permissions (BE-005), ledger-backed balance (BE-010).
+
+### BE-037 — Usernames, identifier login, register without session (Done, 25 Sep 2026)
+
+- `npm run check` → lint, typecheck, 13 files / 149 tests passed, build succeeded.
+- Registration returns `{user}` with no cookie and creates no session; signing in by email, username (any case) and the legacy `email` field all work; unknown usernames get the same 401 as wrong passwords; taken usernames → `409 USERNAME_UNAVAILABLE` on register and profile update; invalid, reserved and demo handles → 400; passwords containing the username are rejected; the identifier bucket locks after 10 attempts for emails and usernames; demo usernames are exempt.
+- Migration `0004` backfill test: legacy users get valid, unique handles from their email (`admin@…` → `admin2`, `42@…` → `user`), demo users get their published handles; schema/migration index parity still holds.
 
 ### BE-036 — Reference data and demo logins (Done, 25 Sep 2026)
 

@@ -74,3 +74,11 @@ Update after every work session: what changed, checks actually run, limits, next
 
 **Next bounded task:** BE-005 `requireRole` using the seeded permissions, then BE-010 ledger.
 
+## 25 September 2026 — Usernames and sign-in by email or username
+
+**Done:** BE-037. Users have a unique lowercase `username` (required at sign-up, editable in the profile). `POST /auth/login` takes `{identifier, password}` where the identifier is an email or a username; `{email}` still works for older clients. `POST /auth/register` now only creates the account (`201 {user}`), and the web app sends people to the sign-in page. Migration `0004-usernames` backfills existing accounts and gives demo logins their handles (`priya.demo`, `rahul.demo`, …).
+
+**Decided:** `USERNAME_UNAVAILABLE` names the field because usernames are public handles; email/phone conflicts stay unspecific. Email and username are separate rate-limit buckets.
+
+**Next bounded task:** BE-005 `requireRole`, then BE-010 ledger.
+

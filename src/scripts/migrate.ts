@@ -5,7 +5,12 @@ import { applyMigrations } from '../infrastructure/database/mongodb/migrations/a
 async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger({ level: config.LOG_LEVEL, pretty: config.APP_ENV === 'local' });
-  await applyMigrations({ uri: config.MONGODB_URI, logger, requireReplicaSet: false });
+  await applyMigrations({
+    uri: config.MONGODB_URI,
+    logger,
+    requireReplicaSet: false,
+    context: { appEnv: config.APP_ENV, fingerprintSecret: config.JWT_SECRET },
+  });
 }
 
 main().catch((err: unknown) => {

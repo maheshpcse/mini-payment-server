@@ -7,6 +7,7 @@ import { parseWith } from '../../common/http/validate.js';
 import { rateLimit, type RateLimitStore } from '../../common/middleware/rate-limit.js';
 import { authOf } from '../../common/middleware/require-auth.js';
 import type { AppConfig } from '../../config/env.js';
+import { isDemoEmail } from '../reference-data/data/demo-accounts.js';
 import { emailSchema, passwordSchema, personNameSchema, phoneSchema } from '../users/user.schemas.js';
 import type { AuthService, SessionGrant } from './auth.service.js';
 
@@ -35,6 +36,13 @@ function emailBucket(req: Request): string | undefined {
   const email = (req.body as { email?: unknown } | undefined)?.email;
   if (typeof email !== 'string') return undefined;
   return createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 32);
+}
+
+/** The demo password is public, so a per-account bucket would only let one visitor lock everyone else out. */
+function loginEmailBucket(req: Request): string | undefined {
+  const email = (req.body as { email?: unknown } | undefined)?.email;
+  if (typeof email === 'string' && isDemoEmail(email)) return undefined;
+  return emailBucket(req);
 }
 
 export interface AuthRouterDeps {
@@ -99,7 +107,7 @@ export function createAuthRouter({ authService, config, logger, rateLimitStore, 
 
   router.post(
     '/login',
-    rateLimit(rateLimitStore, logger, [limit('login-ip', 50, 15 * MINUTE), limit('login-email', 10, 15 * MINUTE, emailBucket)]),
+    rateLimit(rateLimitStore, logger, [limit('login-ip', 50, 15 * MINUTE), limit('login-email', 10, 15 * MINUTE, loginEmailBucket)]),
     async (req, res) => {
       const { email, password } = parseWith(loginSchema, req.body);
       sendGrant(res, 200, await authService.login(email, password, userAgent(req)));

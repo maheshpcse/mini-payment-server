@@ -66,3 +66,11 @@ Update after every work session: what changed, checks actually run, limits, next
 
 **Next bounded task:** BE-005 roles/permissions, then BE-010 ledger so the wallet shows a real sandbox balance.
 
+## 25 September 2026 — Reference data and demo logins
+
+**Done:** BE-036. Roles, permissions, menus, master data (banks, UPI handles, statuses, categories, platform settings) and fictional merchants/billers/operators live in `src/modules/reference-data/data` and are seeded by migration `0002-reference-data`. Migration `0003-demo-accounts` creates demo logins (password `MiniPay@2026`; staff demos only outside staging/production). New `GET /masters`, `/menus`, `/entities`. Migrations now receive `{appEnv, fingerprintSecret, hasher}`. Everything is listed in [MASTER_DATA.md](MASTER_DATA.md).
+
+**Decided:** demo accounts are shared, so password, profile, avatar and session changes return `DEMO_ACCOUNT_RESTRICTED`; payment methods and preferences stay editable so the pages can be tried.
+
+**Next bounded task:** BE-005 `requireRole` using the seeded permissions, then BE-010 ledger.
+

@@ -18,6 +18,7 @@ export const ERROR_CODES = {
     message: 'An account cannot be created with these details. Try signing in or resetting your password.',
   },
   AUTH_RESET_TOKEN_INVALID: { status: 400, message: 'This password reset link is invalid or has expired.' },
+  DEMO_ACCOUNT_RESTRICTED: { status: 403, message: 'This is a shared demo account, so this change is turned off.' },
   PROFILE_PHONE_UNAVAILABLE: { status: 409, message: 'This mobile number cannot be used for your profile.' },
   UNSUPPORTED_MEDIA_TYPE: { status: 415, message: 'The uploaded file type is not supported.' },
   PAYMENT_METHOD_DUPLICATE: { status: 409, message: 'This payment method is already linked.' },

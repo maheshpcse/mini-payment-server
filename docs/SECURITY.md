@@ -25,6 +25,7 @@ Sandbox system: no real money, card data or bank credentials are handled. This d
 | Opaque refresh token stored as SHA-256; atomic compare-and-swap rotation; replay of a previous token revokes the session | `src/modules/auth/auth.service.ts` | auth test (replay, concurrent refresh) |
 | Refresh cookie HttpOnly, `Path=/api/v1/auth`; `SameSite=None; Secure; Partitioned` when deployed; trusted-Origin check on cookie endpoints (CSRF) | `src/modules/auth/auth.routes.ts` | auth test |
 | Redis fixed-window rate limits per IP, per email hash and per user on auth routes; fail open with a warning if Redis is down | `src/common/middleware/rate-limit.ts` | `tests/unit/rate-limit.test.ts`, auth test |
+| Published demo logins are read-only for password, profile, avatar and sessions (`DEMO_ACCOUNT_RESTRICTED`), get no reset tokens, only see their own session, and skip the per-email login bucket so one visitor cannot lock others out; staff demo accounts are never seeded in staging/production | `src/migrations/0003-demo-accounts.ts`, `auth.service.ts`, `users.routes.ts` | `tests/integration/reference-data.test.ts` |
 | No account enumeration: same login error, same forgot-password response, registration conflict does not name the field | auth service | auth test |
 | Password reset: 30-min single-use hashed token; reset revokes all sessions, change revokes all others | auth service | auth test |
 | Ownership: every account query is scoped to the caller; others' resources return 404 | users + payment-methods routes | accounts + auth tests |

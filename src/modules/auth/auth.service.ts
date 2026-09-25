@@ -85,6 +85,10 @@ export function createAuthService(deps: AuthServiceDeps) {
     await SessionModel.updateMany({ ...filter, revokedAt: null }, { $set: { revokedAt: now(), revokeReason: reason } });
   }
 
+  async function assertNotDemo(userId: string) {
+    if (await UserModel.exists({ publicId: userId, isDemo: true })) throw new AppError('DEMO_ACCOUNT_RESTRICTED');
+  }
+
   async function setPassword(userId: string, password: string) {
     const passwordHash = await hasher.hash(password);
     await UserModel.updateOne({ publicId: userId }, { $set: { passwordHash, passwordChangedAt: now() } });
@@ -170,6 +174,7 @@ export function createAuthService(deps: AuthServiceDeps) {
     },
 
     async logoutAll(userId: string): Promise<void> {
+      await assertNotDemo(userId);
       await revokeSessions({ userId }, 'LOGOUT_ALL');
     },
 
@@ -179,7 +184,14 @@ export function createAuthService(deps: AuthServiceDeps) {
     },
 
     async listSessions(userId: string, currentSessionId: string) {
-      const sessions = await SessionModel.find({ userId, revokedAt: null, expiresAt: trusted({ $gt: now() }) })
+      // Demo accounts are shared: other visitors' sessions (and their user agents) stay private.
+      const demo = await UserModel.exists({ publicId: userId, isDemo: true });
+      const sessions = await SessionModel.find({
+        userId,
+        ...(demo ? { sessionId: currentSessionId } : {}),
+        revokedAt: null,
+        expiresAt: trusted({ $gt: now() }),
+      })
         .sort({ lastUsedAt: -1 })
         .limit(50)
         .lean<SessionDocument[]>();
@@ -193,6 +205,7 @@ export function createAuthService(deps: AuthServiceDeps) {
     },
 
     async revokeSession(userId: string, sessionId: string): Promise<void> {
+      await assertNotDemo(userId);
       const result = await SessionModel.updateOne(
         { userId, sessionId, revokedAt: null },
         { $set: { revokedAt: now(), revokeReason: 'REVOKED_BY_USER' } },
@@ -203,7 +216,7 @@ export function createAuthService(deps: AuthServiceDeps) {
     /** Returns the raw token (for the sandbox delivery channel) or null; callers respond identically either way. */
     async requestPasswordReset(email: string): Promise<string | null> {
       const user = await UserModel.findOne({ email, status: 'ACTIVE' }).lean<UserDocument>();
-      if (!user) return null;
+      if (!user || user.isDemo) return null;
       await PasswordResetModel.deleteMany({ userId: user.publicId, usedAt: null });
       const token = randomToken();
       const time = now();
@@ -237,6 +250,7 @@ export function createAuthService(deps: AuthServiceDeps) {
 
     async changePassword(userId: string, currentSessionId: string, currentPassword: string, newPassword: string): Promise<void> {
       const user = await UserModel.findOne({ publicId: userId }).lean<UserDocument>();
+      if (user?.isDemo) throw new AppError('DEMO_ACCOUNT_RESTRICTED');
       if (!user || !(await hasher.verify(user.passwordHash, currentPassword))) {
         throw new AppError('AUTH_INVALID_CREDENTIALS', { message: 'The current password is incorrect.' });
       }

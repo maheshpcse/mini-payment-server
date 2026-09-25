@@ -3,27 +3,10 @@ import { z } from 'zod';
 import { AppError } from '../../common/errors/app-error.js';
 import { parseWith } from '../../common/http/validate.js';
 import { authOf } from '../../common/middleware/require-auth.js';
-import { hmac, publicId } from '../../common/security/tokens.js';
+import { publicId } from '../../common/security/tokens.js';
+import { IFSC_BANKS } from '../reference-data/data/masters.js';
 import { personNameSchema } from '../users/user.schemas.js';
-import { MAX_PAYMENT_METHODS, PaymentMethodModel, type PaymentMethodDocument } from './payment-method.model.js';
-
-/** Sandbox lookup for the bank-code prefix of common IFSCs; unknown codes require a bank name. */
-export const IFSC_BANKS: Record<string, string> = {
-  SBIN: 'State Bank of India',
-  HDFC: 'HDFC Bank',
-  ICIC: 'ICICI Bank',
-  UTIB: 'Axis Bank',
-  KKBK: 'Kotak Mahindra Bank',
-  PUNB: 'Punjab National Bank',
-  BARB: 'Bank of Baroda',
-  CNRB: 'Canara Bank',
-  UBIN: 'Union Bank of India',
-  IDIB: 'Indian Bank',
-  YESB: 'Yes Bank',
-  INDB: 'IndusInd Bank',
-  IDFB: 'IDFC FIRST Bank',
-  FDRL: 'Federal Bank',
-};
+import { bankAccountKey, MAX_PAYMENT_METHODS, PaymentMethodModel, upiKey, type PaymentMethodDocument } from './payment-method.model.js';
 
 const labelSchema = z.string().trim().max(40).optional().transform((value) => value || null);
 
@@ -112,7 +95,7 @@ export function createPaymentMethodsRouter({ requireAuth, fingerprintSecret }: {
     if (!bankName) throw new AppError('VALIDATION_FAILED', { details: [{ path: 'bankName', message: 'is required for this IFSC' }] });
     const dto = await add(userId, {
       type: 'BANK_ACCOUNT',
-      uniqueKey: `bank:${hmac(fingerprintSecret, 'bank-account', `${input.ifsc.slice(0, 4)}:${input.accountNumber}`)}`,
+      uniqueKey: bankAccountKey(fingerprintSecret, input.ifsc, input.accountNumber),
       label: input.label,
       bank: {
         bankName,
@@ -129,7 +112,7 @@ export function createPaymentMethodsRouter({ requireAuth, fingerprintSecret }: {
   router.post('/upi-ids', async (req, res) => {
     const { userId } = authOf(req);
     const input = parseWith(upiSchema, req.body);
-    const dto = await add(userId, { type: 'UPI_ID', uniqueKey: `upi:${input.vpa}`, label: input.label, bank: null, upi: { vpa: input.vpa } });
+    const dto = await add(userId, { type: 'UPI_ID', uniqueKey: upiKey(input.vpa), label: input.label, bank: null, upi: { vpa: input.vpa } });
     res.status(201).json({ data: dto });
   });
 

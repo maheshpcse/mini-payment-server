@@ -1,6 +1,15 @@
+import { hmac } from '../../common/security/tokens.js';
 import { mongoose } from '../../infrastructure/database/mongodb/mongoose.js';
 
 export const MAX_PAYMENT_METHODS = 10;
+
+export function bankAccountKey(fingerprintSecret: string, ifsc: string, accountNumber: string): string {
+  return `bank:${hmac(fingerprintSecret, 'bank-account', `${ifsc.slice(0, 4)}:${accountNumber}`)}`;
+}
+
+export function upiKey(vpa: string): string {
+  return `upi:${vpa}`;
+}
 
 /**
  * Sandbox-linked funding sources. Full account numbers are never stored: only

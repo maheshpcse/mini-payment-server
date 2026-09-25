@@ -33,6 +33,8 @@ export interface UserDocument {
   status: 'ACTIVE' | 'DISABLED';
   avatar?: { avatarId: string; contentType: string; updatedAt: Date } | null;
   preferences: UserPreferences;
+  /** Shared demo login: profile, password and sessions are read-only. */
+  isDemo: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +67,7 @@ const userSchema = new mongoose.Schema<UserDocument>(
       ),
       default: () => structuredClone(DEFAULT_PREFERENCES),
     },
+    isDemo: { type: Boolean, default: false },
   },
   { collection: 'users', timestamps: true, versionKey: false },
 );

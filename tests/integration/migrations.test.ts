@@ -7,8 +7,10 @@ import { migrations } from '../../src/migrations/index.js';
 import '../../src/modules/auth/password-reset.model.js';
 import '../../src/modules/auth/session.model.js';
 import '../../src/modules/payment-methods/payment-method.model.js';
+import '../../src/modules/reference-data/reference-data.models.js';
 import '../../src/modules/users/avatar.model.js';
 import '../../src/modules/users/user.model.js';
+import { FAST_HASHER } from '../helpers/test-app.js';
 
 /**
  * Production runs with autoIndex off, so migrations are the only thing that
@@ -27,7 +29,8 @@ describe('migrations ↔ schema index parity', () => {
   });
 
   it('creates exactly the indexes every model declares', async () => {
-    await runMigrations({ db: connection.db!, migrations, logger: pino({ level: 'silent' }) });
+    await runMigrations({ db: connection.db!, migrations, logger: pino({ level: 'silent' }), context: { hasher: FAST_HASHER } });
+    expect(Object.keys(mongoose.models)).toEqual(expect.arrayContaining(['User', 'Role', 'Menu', 'MasterData', 'Entity']));
     for (const [name, model] of Object.entries(mongoose.models)) {
       const bound = connection.model(name, model.schema);
       const diff = await bound.diffIndexes();

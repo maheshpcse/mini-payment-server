@@ -27,6 +27,11 @@ async function loadUser(userId: string): Promise<UserDocument> {
   return user;
 }
 
+const rejectDemo: RequestHandler = async (req, _res, next) => {
+  if (await UserModel.exists({ publicId: authOf(req).userId, isDemo: true })) throw new AppError('DEMO_ACCOUNT_RESTRICTED');
+  next();
+};
+
 export function createUsersRouter({ requireAuth }: { requireAuth: RequestHandler }): Router {
   const router = Router();
   router.use(requireAuth);
@@ -35,7 +40,7 @@ export function createUsersRouter({ requireAuth }: { requireAuth: RequestHandler
     res.json({ data: toUserDto(await loadUser(authOf(req).userId)) });
   });
 
-  router.patch('/me', async (req, res) => {
+  router.patch('/me', rejectDemo, async (req, res) => {
     const { userId } = authOf(req);
     const update = parseWith(profileUpdateSchema, req.body);
     try {
@@ -50,6 +55,7 @@ export function createUsersRouter({ requireAuth }: { requireAuth: RequestHandler
 
   router.put(
     '/me/avatar',
+    rejectDemo,
     express.raw({ type: () => true, limit: AVATAR_MAX_BYTES }),
     async (req, res) => {
       const { userId } = authOf(req);
@@ -76,7 +82,7 @@ export function createUsersRouter({ requireAuth }: { requireAuth: RequestHandler
     },
   );
 
-  router.delete('/me/avatar', async (req, res) => {
+  router.delete('/me/avatar', rejectDemo, async (req, res) => {
     const { userId } = authOf(req);
     const user = await UserModel.findOneAndUpdate({ publicId: userId }, { $set: { avatar: null } }, { returnDocument: 'after' }).lean<UserDocument>();
     await AvatarModel.deleteMany({ userId });

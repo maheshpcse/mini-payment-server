@@ -18,6 +18,7 @@ import { createAuthService } from './modules/auth/auth.service.js';
 import { createHealthRouter } from './modules/health/health.routes.js';
 import type { DependencyCheck } from './modules/health/health.types.js';
 import { createPaymentMethodsRouter, createWalletsRouter } from './modules/payment-methods/payment-methods.routes.js';
+import { createEntitiesRouter, createMastersRouter, createMenusRouter } from './modules/reference-data/reference-data.routes.js';
 import { createAvatarsRouter, createUsersRouter } from './modules/users/users.routes.js';
 
 export interface AppDependencies {
@@ -98,6 +99,9 @@ export function createApp({ config, logger, version, readinessChecks, rateLimitS
   api.use('/avatars', createAvatarsRouter());
   api.use('/payment-methods', createPaymentMethodsRouter({ requireAuth, fingerprintSecret: config.JWT_SECRET }));
   api.use('/wallets', createWalletsRouter({ requireAuth }));
+  api.use('/masters', createMastersRouter());
+  api.use('/menus', createMenusRouter({ requireAuth }));
+  api.use('/entities', createEntitiesRouter({ requireAuth }));
   api.get('/openapi.json', (_req, res) => {
     res.json(buildOpenApiDocument(version));
   });

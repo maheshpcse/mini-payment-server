@@ -82,6 +82,7 @@ export function toUserDto(user: UserDocument) {
     phone: user.phone ?? null,
     avatarUrl: user.avatar ? `/avatars/${user.avatar.avatarId}` : null,
     roles: user.roles,
+    isDemo: user.isDemo === true,
     createdAt: user.createdAt.toISOString(),
   };
 }

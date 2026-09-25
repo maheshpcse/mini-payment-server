@@ -53,6 +53,8 @@ const obj = (properties: Record<string, object>, required: string[] = Object.key
   properties,
 });
 
+const DEMO = 'DEMO_ACCOUNT_RESTRICTED: shared demo accounts cannot make this change';
+
 const authPaths = {
   '/auth/register': {
     post: op(
@@ -78,7 +80,7 @@ const authPaths = {
     }),
   },
   '/auth/logout': { post: op('Revoke the current session (cookie)', 'auth', { '204': 'Signed out' }) },
-  '/auth/logout-all': { post: op('Revoke every session for the user', 'auth', { '204': 'All sessions revoked' }, { auth: true }) },
+  '/auth/logout-all': { post: op('Revoke every session for the user', 'auth', { '204': 'All sessions revoked', '403': DEMO }, { auth: true }) },
   '/auth/password/forgot': {
     post: op(
       'Request a password reset link (same response whether or not the account exists)',
@@ -99,13 +101,13 @@ const authPaths = {
     post: op(
       'Change password; revokes other sessions',
       'auth',
-      { '204': 'Password changed', '400': 'Weak password', '401': 'Current password incorrect' },
+      { '204': 'Password changed', '400': 'Weak password', '401': 'Current password incorrect', '403': DEMO },
       { auth: true, body: obj({ currentPassword: str, newPassword: str }) },
     ),
   },
-  '/auth/sessions': { get: op('List active sessions', 'auth', { '200': 'Sessions, newest activity first' }, { auth: true }) },
+  '/auth/sessions': { get: op('List active sessions', 'auth', { '200': 'Sessions, newest activity first (demo accounts see only the current one)' }, { auth: true }) },
   '/auth/sessions/{sessionId}': {
-    delete: op('Revoke one of your sessions', 'auth', { '204': 'Revoked', '404': 'No such active session' }, { auth: true }),
+    delete: op('Revoke one of your sessions', 'auth', { '204': 'Revoked', '403': DEMO, '404': 'No such active session' }, { auth: true }),
   },
 };
 
@@ -115,7 +117,7 @@ const userPaths = {
     patch: op(
       'Update first name, last name or mobile number',
       'users',
-      { '200': 'Updated profile', '400': 'Validation failed', '409': 'Mobile number unavailable' },
+      { '200': 'Updated profile', '400': 'Validation failed', '403': DEMO, '409': 'Mobile number unavailable' },
       { auth: true, body: obj({ firstName: str, lastName: str, phone: { type: ['string', 'null'] } }, []) },
     ),
   },
@@ -123,10 +125,10 @@ const userPaths = {
     put: op(
       'Upload or replace the avatar (PNG, JPEG or WebP, ≤ 512 KB, raw body)',
       'users',
-      { '200': 'Updated profile with avatarUrl', '413': 'Too large', '415': 'Unsupported or mismatched image type' },
+      { '200': 'Updated profile with avatarUrl', '403': DEMO, '413': 'Too large', '415': 'Unsupported or mismatched image type' },
       { auth: true, body: { type: 'string', format: 'binary' }, bodyType: 'image/*' },
     ),
-    delete: op('Remove the avatar (initials are shown instead)', 'users', { '200': 'Updated profile' }, { auth: true }),
+    delete: op('Remove the avatar (initials are shown instead)', 'users', { '200': 'Updated profile', '403': DEMO }, { auth: true }),
   },
   '/users/me/preferences': {
     get: op('Notification and payment preferences', 'users', { '200': 'Preferences with sandbox ceilings' }, { auth: true }),
@@ -175,6 +177,32 @@ const paymentMethodPaths = {
   },
   '/payment-methods/{methodId}': {
     delete: op('Unlink a payment method', 'wallets', { '200': 'Updated list', '404': 'Not found' }, { auth: true }),
+  },
+};
+
+const referenceDataPaths = {
+  '/masters': {
+    get: {
+      ...op('Master data grouped by type (public, cacheable for 5 minutes)', 'reference-data', { '200': 'Map of type → [{ code, label, attributes }]', '400': 'Unknown type' }),
+      parameters: [
+        {
+          name: 'types',
+          in: 'query',
+          required: false,
+          description: 'Comma-separated master types, e.g. `bank,upi_handle`. Omit for all.',
+          schema: str,
+        },
+      ],
+    },
+  },
+  '/menus': {
+    get: op('Navigation menus the current user\'s roles permit, plus the resolved permissions', 'reference-data', { '200': 'Roles, permissions and ordered menus' }, { auth: true }),
+  },
+  '/entities': {
+    get: {
+      ...op('Active sandbox merchants, billers and telecom operators', 'reference-data', { '200': 'Entities', '400': 'Unknown type' }, { auth: true }),
+      parameters: [{ name: 'type', in: 'query', required: false, schema: { enum: ['MERCHANT', 'BILLER', 'TELECOM_OPERATOR'] } }],
+    },
   },
 };
 
@@ -243,6 +271,7 @@ export function buildOpenApiDocument(version: string) {
       ...authPaths,
       ...userPaths,
       ...paymentMethodPaths,
+      ...referenceDataPaths,
     },
   };
 }

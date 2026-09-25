@@ -42,6 +42,7 @@ Delivery order follows the master prompt: foundation → auth → ledger/payment
 | BE-033 | P1 | devops | GitHub Actions dispatch and Railway deploy workflow | Backend CI runnable via **Run workflow** (`workflow_dispatch`) and on `main`/`master`; `deploy-railway.yml` (manual, or after green CI on `main` when `RAILWAY_DEPLOY_ON_CI=true`) runs `railway up --ci` for the configured service and polls public readiness; docs cover secrets/variables and avoiding double deploys | `actionlint` 1.7.7 clean on all workflows; Railway CLI 5.62.1 flags confirmed (`up --ci --service --environment --message`), invalid token fails fast | BE-032 | Done |
 | BE-034 | P1 | users | Profile, avatar and preferences | `GET/PATCH /users/me` (names, phone; email read-only); avatar PUT/DELETE (PNG/JPEG/WebP by magic bytes, ≤ 512 KB) served from `/avatars/:id`; notification channel/event and payment preferences with server ceilings | `tests/integration/accounts.test.ts` | BE-004 | Done |
 | BE-035 | P1 | payment-methods | Sandbox bank accounts and UPI IDs | Bank accounts stored as last 4 + HMAC fingerprint (no full number), bank derived from IFSC; UPI VPA validation; duplicates rejected; max 10; default promotion; `GET /wallets/me` summary until the ledger (BE-010) exists | `tests/integration/accounts.test.ts` | BE-004 | Done |
+| BE-036 | P1 | reference-data | Master/reference data and demo logins | Roles, permissions, menus, master data and sandbox entities as code-owned data files seeded by migration `0002` (idempotent sync); demo logins by migration `0003` (staff demos never in staging/production); `GET /masters`, `/menus`, `/entities`; demo accounts cannot change password/profile/sessions; `docs/MASTER_DATA.md` | `tests/integration/reference-data.test.ts`, `tests/integration/migrations.test.ts` | BE-003, BE-004 | Done |
 
 ## Evidence
 
@@ -64,4 +65,13 @@ Delivery order follows the master prompt: foundation → auth → ledger/payment
 - `tests/integration/accounts.test.ts`: names/phone update recomputing initials; email/role changes and taken phone numbers rejected; avatar upload / cross-origin immutable serving / replace / remove; non-images, mismatched types, oversized and anonymous uploads rejected; preference defaults, partial merge, security alerts locked on, limit ceilings; bank accounts and UPI IDs with IFSC bank detection and no full account number returned; default switching, promotion on delete, owner scoping; cap on linked methods.
 - `tests/integration/migrations.test.ts`: migration 0001 creates exactly the model indexes.
 - Built server against local MongoDB replica set + Redis, exercised from the web app in headless Chrome (sign in, avatar upload, UPI + bank link, settings, sign out).
-- **Not done:** OTP and email/phone verification (BE-007), real reset-email delivery (sandbox token is returned only when `APP_ENV` is `local`/`test`), roles/permissions (BE-005), ledger-backed balance (BE-010).
+- **Not done (at the time):** OTP and email/phone verification (BE-007), real reset-email delivery (sandbox token is returned only when `APP_ENV` is `local`/`test`), roles/permissions (BE-005), ledger-backed balance (BE-010).
+
+### BE-036 — Reference data and demo logins (Done, 25 Sep 2026)
+
+- `npm run check` → lint, typecheck, 13 files / 143 tests passed, build succeeded.
+- `tests/integration/reference-data.test.ts`: migrations write every row from the data files; re-running is a no-op, dropped menus are deleted and dropped masters deactivated; every role/menu permission exists; all six demo logins work in `test` with seeded UPI/bank methods, and re-linking the seeded bank account through the API is a duplicate (shared fingerprint key); only consumer demos in `production`; a pre-existing registration at a demo address is left alone; demo restrictions (password change, logout-all, session revoke, profile, avatar → 403; sessions list shows only the current one; no reset token); demo emails exempt from the per-account login lockout; `/masters` public with type filter and caching, `/menus` filtered by role, `/entities` authenticated.
+- `tests/integration/migrations.test.ts`: migrations 0001–0003 create exactly the indexes the models declare.
+- `npm run migrate` against the local replica set, then demo login from the web app in headless Chrome.
+- **Not done:** permission enforcement on staff endpoints (`requireRole`, BE-005) and the staff console (web FE-028); demo data is shared and not reset automatically.
+

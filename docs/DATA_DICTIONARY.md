@@ -13,12 +13,19 @@ Implemented collections are listed first and match the Mongoose schemas and migr
 
 | Collection | Key fields | Indexes | Task |
 | --- | --- | --- | --- |
-| `users` | publicId, email, phone?, firstName, lastName, passwordHash, passwordChangedAt?, roles[], status (ACTIVE/DISABLED), avatar {avatarId, contentType, updatedAt}?, preferences {notifications {channels, events}, payments {perTransactionLimitMinor, dailyLimitMinor, hideBalance}} | unique publicId, unique email, unique phone (partial) | BE-004, BE-034 |
+| `users` | publicId, email, phone?, firstName, lastName, passwordHash, passwordChangedAt?, roles[], status (ACTIVE/DISABLED), avatar {avatarId, contentType, updatedAt}?, preferences {notifications {channels, events}, payments {perTransactionLimitMinor, dailyLimitMinor, hideBalance}}, isDemo (shared demo login, see MASTER_DATA.md) | unique publicId, unique email, unique phone (partial) | BE-004, BE-034, BE-036 |
 | `avatars` | avatarId, userId, contentType, data (binary, ≤ 512 KB), size, createdAt (no updatedAt) | unique avatarId, userId | BE-034 |
 | `sessions` | sessionId, userId, refreshTokenHash, previousTokenHashes[≤5], userAgent, createdAt, lastUsedAt, expiresAt, revokedAt?, revokeReason? (one document per refresh-token family; looked up by the `ses_` id embedded in the token) | unique sessionId, userId+revokedAt, TTL on expiresAt | BE-004, BE-009 |
 | `password_resets` | tokenHash, userId, createdAt, expiresAt, usedAt? | unique tokenHash, userId, TTL on expiresAt | BE-004 |
 | `payment_methods` | publicId, userId, type (BANK_ACCOUNT/UPI_ID), uniqueKey (HMAC fingerprint / VPA), label?, isDefault, verifiedAt, bank {bankName, accountHolderName, accountLast4, ifsc, accountType}?, upi {vpa}? | unique publicId, unique userId+uniqueKey, userId+createdAt | BE-035 |
-| `migrations` | version, name, appliedAt, checksum | unique version | BE-003 |
+| `migrations` | version, name, appliedAt, durationMs | unique version | BE-003 |
+| `permissions` | code, module, scope (CONSUMER/STAFF), description | unique code | BE-036 |
+| `roles` | code (USER/SUPPORT/OPERATIONS/ADMIN/AUDITOR), name, description, permissions[], isSystem | unique code | BE-036 |
+| `menus` | menuId, label, path, icon, group (PAYMENTS/ACCOUNT/ADMINISTRATION), order, permission, status (LIVE/PLANNED), task?, description | unique menuId | BE-036 |
+| `master_data` | type, code, label, order, attributes, active | unique type+code | BE-036 |
+| `entities` | code, type (MERCHANT/BILLER/TELECOM_OPERATOR), name, category, vpa?, city?, attributes, active, sandbox | unique code, type+active, unique vpa (partial) | BE-036 |
+
+Reference collections (`permissions` … `entities`) are written only by migrations from `src/modules/reference-data/data`; their contents are listed in [MASTER_DATA.md](MASTER_DATA.md).
 
 ## Planned collections
 
@@ -39,7 +46,7 @@ Implemented collections are listed first and match the Mongoose schemas and migr
 | `beneficiaries` | ownerId, type, displayName, maskedAccount, verifiedAt | ownerId | BE-016 |
 | `qr_payloads` | publicId, ownerId, type (USER/MERCHANT/REQUEST), amountMinor?, expiresAt, signatureKeyId | publicId unique; ownerId+createdAt | BE-018 |
 | `notifications` | userId, type, title, body, data, readAt, channels[] | userId+createdAt; userId+readAt | BE-015 |
-| `billers`, `bills`, `recharges` | provider, category, customer ref (masked), amountMinor, status, providerReference | per task | BE-023 |
+| `bills`, `recharges` (billers live in `entities`) | provider, category, customer ref (masked), amountMinor, status, providerReference | per task | BE-023 |
 | `rewards`, `reward_rules` | userId, sourceEventId, type, points/amountMinor, status | unique userId+sourceEventId | BE-024 |
 | `security_events` | userId, type, severity, metadata | userId+createdAt | BE-025 |
 | `audit_logs` | actor, action, target, requestId, result, metadata, createdAt (append-only) | actor.id+createdAt; target+createdAt | BE-006 |

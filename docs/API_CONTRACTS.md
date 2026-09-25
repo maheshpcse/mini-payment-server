@@ -60,6 +60,7 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | `AUTH_SESSION_EXPIRED` | 401 | Refresh token missing, expired, revoked or replayed; access token's session ended |
 | `AUTH_REGISTRATION_CONFLICT` | 409 | Email or phone already registered (does not say which) |
 | `AUTH_RESET_TOKEN_INVALID` | 400 | Reset token unknown, used or expired |
+| `DEMO_ACCOUNT_RESTRICTED` | 403 | Shared demo account cannot change password, profile, avatar or sessions |
 | `PROFILE_PHONE_UNAVAILABLE` | 409 | Phone number belongs to another account |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Avatar is not PNG/JPEG/WebP (checked by magic bytes) |
 | `PAYMENT_METHOD_DUPLICATE` | 409 | Bank account or UPI ID already linked |
@@ -83,7 +84,7 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | GET | `/health/ready` | none | 200 `{data:{status:"ready",dependencies:[{name,status:"up",latencyMs}]}}` or 503 with `status:"not_ready"` |
 | GET | `/openapi.json` | none | OpenAPI 3.1 document |
 | POST | `/auth/register` | none | 201 session grant `{accessToken, tokenType, expiresIn, user}` + refresh cookie. Rate limit 10/h per IP |
-| POST | `/auth/login` | none | 200 session grant + cookie. 50/15 min per IP, 10/15 min per email |
+| POST | `/auth/login` | none | 200 session grant + cookie. 50/15 min per IP, 10/15 min per email (demo emails exempt from the email bucket) |
 | POST | `/auth/refresh` | cookie + trusted Origin | 200 session grant; rotates the cookie. 120/min per IP |
 | POST | `/auth/logout` | cookie + trusted Origin | 204; revokes the session, clears the cookie |
 | POST | `/auth/logout-all` | bearer | 204; revokes every session |
@@ -99,6 +100,11 @@ Amounts are sent and returned as `{ "amountMinor": 1023, "currency": "INR" }`. C
 | POST | `/payment-methods/bank-accounts`, `/payment-methods/upi-ids` | bearer | 201 method; full account number is never stored or returned |
 | POST / DELETE | `/payment-methods/:methodId/default`, `/payment-methods/:methodId` | bearer | Updated list; deleting the default promotes the oldest remaining method |
 | GET | `/wallets/me` | bearer | Sandbox wallet summary; `balanceMinor` 0 and `ledgerAvailable: false` until BE-010 |
+| GET | `/masters?types=bank,upi_handle` | none | `{data:{<type>:[{code,label,attributes}]}}` for active rows; unknown type → 400; `Cache-Control: public, max-age=300` |
+| GET | `/menus` | bearer | `{data:{roles, permissions, menus:[{id,label,path,icon,group,order,permission,status,task,description}]}}` filtered by the caller's roles |
+| GET | `/entities?type=BILLER` | bearer | Active sandbox merchants, billers and telecom operators |
+
+The user DTO includes `isDemo`. Demo accounts get `403 DEMO_ACCOUNT_RESTRICTED` from password change, logout-all, session revoke, `PATCH /users/me` and avatar upload/removal; `GET /auth/sessions` returns only the current session; forgot-password creates no token. Credentials and data: [MASTER_DATA.md](MASTER_DATA.md).
 
 ## Planned endpoints (not implemented)
 

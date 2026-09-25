@@ -25,8 +25,11 @@ Requirements: Node.js 22.12+ and either Docker or local MongoDB (as a replica se
 cp .env.example .env
 docker compose up -d mongo redis   # or run your own MongoDB replica set + Redis
 npm install
+npm run migrate                    # indexes, reference data and demo logins
 npm run dev                        # http://localhost:4000/api/v1/health
 ```
+
+Demo login: `demo@example.com` / `MiniPay@2026`. All demo accounts, including the local-only staff ones, are listed in [docs/MASTER_DATA.md](docs/MASTER_DATA.md#demo-logins).
 
 Full stack in containers: `docker compose up --build`.
 
@@ -54,6 +57,7 @@ Start with [docs/PROJECT_ANALYSIS.md](docs/PROJECT_ANALYSIS.md), then [RULES.md]
 | [Architecture](docs/ARCHITECTURE.md) | Modules, layers, runtime, extraction path |
 | [API contracts](docs/API_CONTRACTS.md) | Envelope, errors, headers, implemented and planned endpoints |
 | [Data dictionary](docs/DATA_DICTIONARY.md) | Collections, fields, indexes |
+| [Master data](docs/MASTER_DATA.md) | Roles, permissions, menus, masters, sandbox entities, **demo logins** |
 | [Payment lifecycle](docs/PAYMENT_LIFECYCLE.md) | State machine, ledger, idempotency, concurrency |
 | [Provider integration](docs/PROVIDER_INTEGRATION.md) | Adapter interfaces and webhook rules |
 | [Security](docs/SECURITY.md) | Controls in place and planned, threat notes |

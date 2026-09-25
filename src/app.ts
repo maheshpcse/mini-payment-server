@@ -1,25 +1,45 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import type { Logger } from 'pino';
 import { createErrorHandler, notFoundHandler } from './common/middleware/error-handler.js';
+import { createMemoryRateLimitStore, type RateLimitStore } from './common/middleware/rate-limit.js';
 import { rejectOperatorKeys } from './common/middleware/reject-operator-keys.js';
 import { REQUEST_ID_HEADER, requestId } from './common/middleware/request-id.js';
+import { createRequireAuth } from './common/middleware/require-auth.js';
+import { createPasswordHasher, type PasswordHasher } from './common/security/password-hasher.js';
+import { createAccessTokenService } from './common/security/tokens.js';
 import type { AppConfig } from './config/env.js';
 import { buildOpenApiDocument } from './docs/openapi.js';
+import { createAuthRouter } from './modules/auth/auth.routes.js';
+import { createAuthService } from './modules/auth/auth.service.js';
 import { createHealthRouter } from './modules/health/health.routes.js';
 import type { DependencyCheck } from './modules/health/health.types.js';
+import { createPaymentMethodsRouter, createWalletsRouter } from './modules/payment-methods/payment-methods.routes.js';
+import { createAvatarsRouter, createUsersRouter } from './modules/users/users.routes.js';
 
 export interface AppDependencies {
   config: AppConfig;
   logger: Logger;
   version: string;
   readinessChecks: DependencyCheck[];
+  /** Defaults to an in-process store; production passes the Redis store so limits hold across instances. */
+  rateLimitStore?: RateLimitStore;
+  passwordHasher?: PasswordHasher;
 }
 
-export function createApp({ config, logger, version, readinessChecks }: AppDependencies): Express {
+export function createApp({ config, logger, version, readinessChecks, rateLimitStore, passwordHasher }: AppDependencies): Express {
   const app = express();
+  const tokens = createAccessTokenService({ secret: config.JWT_SECRET, ttlSeconds: config.ACCESS_TOKEN_TTL_SECONDS });
+  const authService = createAuthService({
+    hasher: passwordHasher ?? createPasswordHasher(),
+    tokens,
+    refreshTokenTtlDays: config.REFRESH_TOKEN_TTL_DAYS,
+    logger,
+  });
+  const requireAuth = createRequireAuth({ tokens, isSessionActive: authService.isSessionActive });
 
   app.disable('x-powered-by');
   app.set('trust proxy', config.TRUST_PROXY_HOPS);
@@ -57,6 +77,7 @@ export function createApp({ config, logger, version, readinessChecks }: AppDepen
     }),
   );
   app.use(express.json({ limit: config.REQUEST_BODY_LIMIT }));
+  app.use(cookieParser());
   app.use(rejectOperatorKeys);
 
   const api = express.Router();
@@ -69,6 +90,14 @@ export function createApp({ config, logger, version, readinessChecks }: AppDepen
       readinessChecks,
     }),
   );
+  api.use(
+    '/auth',
+    createAuthRouter({ authService, config, logger, rateLimitStore: rateLimitStore ?? createMemoryRateLimitStore(), requireAuth }),
+  );
+  api.use('/users', createUsersRouter({ requireAuth }));
+  api.use('/avatars', createAvatarsRouter());
+  api.use('/payment-methods', createPaymentMethodsRouter({ requireAuth, fingerprintSecret: config.JWT_SECRET }));
+  api.use('/wallets', createWalletsRouter({ requireAuth }));
   api.get('/openapi.json', (_req, res) => {
     res.json(buildOpenApiDocument(version));
   });

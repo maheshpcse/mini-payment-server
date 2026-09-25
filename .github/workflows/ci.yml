@@ -58,6 +58,7 @@ jobs:
             -e CORS_ORIGINS=https://maheshpcse.github.io \
             -e MONGODB_URI='mongodb+srv://ci.example.mongodb.net/mini_payment' \
             -e REDIS_URL=redis://redis.ci.internal:6379 \
+            -e JWT_SECRET="$(openssl rand -base64 48)" \
             mini-payment-server:ci node dist/scripts/deploy-check.js
           if docker run --rm -e NODE_ENV=production -e MONGODB_URI=mongodb://localhost:27017/x -e REDIS_URL=redis://localhost:6379 \
             mini-payment-server:ci node dist/scripts/deploy-check.js; then

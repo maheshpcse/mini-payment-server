@@ -51,3 +51,18 @@ Update after every work session: what changed, checks actually run, limits, next
 **Fix:** origins normalized to scheme+host (path, trailing slash, quotes dropped, deduplicated); rejected origins logged once each (bounded); effective `corsOrigins` in the startup log. Verified with the built server using the exact Railway value.
 
 **Security:** `.env.production` with live Railway MongoDB/Redis credentials had been committed to the public repo (and a placeholder `.env`). Files removed and CI now fails on tracked env files; **credentials must be rotated in Railway** (history still contains them).
+
+## 24 September 2026 — Auth, profile, avatars, preferences, payment methods
+
+**Done:** BE-004 (register, login, refresh rotation with replay detection, logout, logout-all, forgot/reset/change password, sessions), BE-034 (profile, avatar, preferences), BE-035 (sandbox bank accounts and UPI IDs, wallet summary). Migration `0001-accounts-and-sessions`. Removed the Developer Lab task (BE-028) and the `DEVELOPER` role — the Lab was out of scope.
+
+**Checks run:** `npm run check` → 12 files / 132 tests. Built server against the local replica set + Redis, driven by the web app in headless Chrome.
+
+**Decided:** cross-site cookies use `SameSite=None; Secure; Partitioned` + Origin checks (see DEPLOYMENT.md); custom domains remain the long-term fix.
+
+**Action for the owner:** set `JWT_SECRET` in Railway before deploying (pre-deploy check fails without it). Rotate the MongoDB/Redis credentials that were previously committed.
+
+**Not verified:** live Railway deploy; reset-email delivery (no provider yet, BE-015).
+
+**Next bounded task:** BE-005 roles/permissions, then BE-010 ledger so the wallet shows a real sandbox balance.
+

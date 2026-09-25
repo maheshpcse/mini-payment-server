@@ -16,7 +16,7 @@ Synthetic only. No real names, phone numbers, emails, bank or card data. Use `ex
 
 ## Current results (24 Sep 2026)
 
-`npm run check`: 6 files, 70 tests, all passing. Manual smoke run against real MongoDB 8.2.6 replica set and Redis 7.0.15 recorded in TASKS BE-001.
+`npm run check`: 12 files, 132 tests, all passing. Manual smoke runs against a real MongoDB 8.2.6 replica set and Redis 7.0.15 are recorded in TASKS (BE-001, BE-004).
 
 | File | Covers |
 | --- | --- |
@@ -26,6 +26,12 @@ Synthetic only. No real names, phone numbers, emails, bank or card data. Use `ex
 | `tests/unit/logger.test.ts` | redaction of auth header, cookie, password, PIN, OTP, refresh token |
 | `tests/integration/app.test.ts` | health/readiness, request ids, 404/400/413 contract, operator-key rejection, Helmet, CORS allowlist |
 | `tests/integration/openapi.test.ts` | OpenAPI served; documented routes exist |
+| `tests/integration/database.test.ts` | replica-set transactions, migration runner lock/history |
+| `tests/integration/migrations.test.ts` | migration 0001 indexes equal the model indexes |
+| `tests/integration/auth.test.ts` | registration, login without enumeration, rate limit, refresh rotation + replay, concurrent refresh, Origin/cookie checks, cross-site cookie flags, logout/sessions, tampered tokens, forgot/reset/change password |
+| `tests/integration/accounts.test.ts` | profile, avatar upload/serve/validation, preferences + ceilings, bank accounts/UPI IDs, defaults, ownership, method cap |
+| `tests/unit/rate-limit.test.ts` | windows, 429 + Retry-After, fail-open |
+| `tests/unit/deployment-config.test.ts` | hosted-deployment rules incl. JWT secret and SameSite |
 
 ## Required matrix (from master prompt §48–§49)
 

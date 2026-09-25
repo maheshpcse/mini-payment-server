@@ -10,6 +10,7 @@ const valid = {
   TRUST_PROXY_HOPS: '1',
   MONGODB_URI: `mongodb+srv://user:pw@${SECRET_HOST}/mini_payment`,
   REDIS_URL: 'redis://default:pw@redis.railway.internal:6379',
+  JWT_SECRET: 'q3Vt9xLr2Pz8Kc1Wm7Hb4Ns6Yd0Fg5Ja-Ue_Io',
 };
 
 describe('validateDeploymentEnv', () => {
@@ -32,6 +33,10 @@ describe('validateDeploymentEnv', () => {
     [{ MONGODB_URI: 'mongodb://localhost:27017/app?replicaSet=rs0' }, /hosted MongoDB/],
     [{ MONGODB_URI: 'mongodb://mongo.railway.internal:27017/app' }, /replica set/],
     [{ REDIS_URL: 'redis://127.0.0.1:6379' }, /hosted Redis/],
+    [{ JWT_SECRET: undefined }, /JWT_SECRET: is required/],
+    [{ JWT_SECRET: 'SET-IN-RAILWAY-SET-IN-RAILWAY-SET-IN-RAILWAY' }, /JWT_SECRET must be a random value/],
+    [{ JWT_SECRET: 'a'.repeat(40) }, /JWT_SECRET must be a random value/],
+    [{ REFRESH_COOKIE_SAMESITE: 'lax' }, /REFRESH_COOKIE_SAMESITE must be none/],
   ])('rejects %o', (override, message) => {
     expect(validateDeploymentEnv({ ...valid, ...override }).join('\n')).toMatch(message);
   });

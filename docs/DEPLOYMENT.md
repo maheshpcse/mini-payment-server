@@ -47,6 +47,9 @@ Railway: mini-payment-server (Docker)  ──►  MongoDB replica set (Atlas or 
 | `MONGODB_URI` | Atlas `mongodb+srv://…/mini_payment?retryWrites=true&w=majority`, or the replica-set template's URI |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` (use the variable-reference picker; the name follows your Redis service) |
 | `LOG_LEVEL` | `info` |
+| `JWT_SECRET` | **Required.** Random, 32+ characters: `openssl rand -base64 48`. Placeholders are rejected by the pre-deploy check. Changing it signs everyone out of their current access tokens (refresh cookies keep working) |
+| `REFRESH_COOKIE_SAMESITE` | Optional; defaults to `none` when deployed (with `Secure; Partitioned`). Must stay `none` while the app is on `github.io` — the pre-deploy check enforces this |
+| `ACCESS_TOKEN_TTL_SECONDS` / `REFRESH_TOKEN_TTL_DAYS` | Optional; defaults 900 / 14 |
 
    Leave `PORT` unset; Railway injects it. Railway reads **Variables**, not files: never commit `.env` or `.env.production` (the app does not load them in production, and CI fails if one is tracked). If credentials were ever committed, rotate them — deleting the file does not remove it from git history.
 
@@ -109,9 +112,11 @@ The job runs in a GitHub environment named after the Railway environment (`produ
 | Health check timeout / 503 on `/health/ready` | MongoDB network access (Atlas IP allowlist) or Redis reference is wrong; check deploy logs |
 | Browser: `No 'Access-Control-Allow-Origin' header` on the preflight | `CORS_ORIGINS` does not contain the page's origin. The origin is scheme + host only: for `https://maheshpcse.github.io/mini-payment-app/` it is `https://maheshpcse.github.io`. Entries with a path, trailing slash or quotes are normalized to their origin at startup; the `server listening` log shows the effective `corsOrigins`, and each rejected origin is logged once as `CORS: origin not allowed`. Check with `curl -si -X OPTIONS $API/api/v1/health/ready -H 'Origin: https://maheshpcse.github.io' -H 'Access-Control-Request-Method: GET'` |
 
-## Known constraint for authentication (BE-004)
+## Cross-site authentication
 
-GitHub Pages (`*.github.io`) and Railway (`*.up.railway.app`) are different sites, so a `SameSite=Strict/Lax` refresh-token cookie is never sent cross-site, and browsers increasingly block third-party cookies even with `SameSite=None`. Before BE-004 ships, choose one: (a) custom domains on the same site (e.g. `pay.example.com` on Pages and `api.example.com` on Railway) with `SameSite=Lax` cookies — preferred; or (b) `SameSite=None; Secure; Partitioned` cookies plus Origin checks, accepting that some browsers will force re-login. Recorded as an open question in `docs/MEMORY.md`.
+GitHub Pages (`*.github.io`) and Railway (`*.up.railway.app`) are different sites, so a `SameSite=Lax` refresh cookie would never be sent. The API therefore uses option (b): `SameSite=None; Secure; Partitioned` (CHIPS) cookies scoped to `/api/v1/auth`, with a trusted-`Origin` check on the two endpoints that read the cookie. Browsers that block all third-party cookies will ask the user to sign in again after a reload. The long-term fix is same-site custom domains (e.g. `pay.example.com` + `api.example.com`) with `REFRESH_COOKIE_SAMESITE=lax`.
+
+Password-reset emails are not delivered yet (BE-015); in production `POST /auth/password/forgot` returns 202 without a link, so reset works only in local/test until an email provider is connected.
 
 ## Status
 

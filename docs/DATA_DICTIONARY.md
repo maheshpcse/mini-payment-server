@@ -1,6 +1,6 @@
 # MiNi Payment Server — data dictionary
 
-**No collections exist yet.** This document is the design target for the planned models; each entry moves to "Implemented" with its task and must then match the Mongoose schema exactly. Collection names use snake_case; fields use camelCase. All documents have `createdAt`/`updatedAt` unless stated.
+Implemented collections are listed first and match the Mongoose schemas and migration `0001-accounts-and-sessions`; the rest is the design target for planned models. Collection names use snake_case; fields use camelCase. All documents have `createdAt`/`updatedAt` unless stated.
 
 ## Conventions
 
@@ -9,13 +9,23 @@
 - Secrets (passwords, PINs, OTPs, refresh tokens) are stored only as hashes.
 - Growing histories live in their own collections, never embedded arrays on `users`.
 
+## Implemented collections
+
+| Collection | Key fields | Indexes | Task |
+| --- | --- | --- | --- |
+| `users` | publicId, email, phone?, firstName, lastName, passwordHash, passwordChangedAt?, roles[], status (ACTIVE/DISABLED), avatar {avatarId, contentType, updatedAt}?, preferences {notifications {channels, events}, payments {perTransactionLimitMinor, dailyLimitMinor, hideBalance}} | unique publicId, unique email, unique phone (partial) | BE-004, BE-034 |
+| `avatars` | avatarId, userId, contentType, data (binary, ≤ 512 KB), size, createdAt (no updatedAt) | unique avatarId, userId | BE-034 |
+| `sessions` | sessionId, userId, refreshTokenHash, previousTokenHashes[≤5], userAgent, createdAt, lastUsedAt, expiresAt, revokedAt?, revokeReason? (one document per refresh-token family; looked up by the `ses_` id embedded in the token) | unique sessionId, userId+revokedAt, TTL on expiresAt | BE-004, BE-009 |
+| `password_resets` | tokenHash, userId, createdAt, expiresAt, usedAt? | unique tokenHash, userId, TTL on expiresAt | BE-004 |
+| `payment_methods` | publicId, userId, type (BANK_ACCOUNT/UPI_ID), uniqueKey (HMAC fingerprint / VPA), label?, isDefault, verifiedAt, bank {bankName, accountHolderName, accountLast4, ifsc, accountType}?, upi {vpa}? | unique publicId, unique userId+uniqueKey, userId+createdAt | BE-035 |
+| `migrations` | version, name, appliedAt, checksum | unique version | BE-003 |
+
 ## Planned collections
 
 | Collection | Key fields | Indexes | Task |
 | --- | --- | --- | --- |
-| `users` | publicId, email, phone, passwordHash, roles[], status, emailVerifiedAt, phoneVerifiedAt, pinHash, pinFailedAttempts, pinLockedUntil | unique email, unique phone (partial), unique publicId | BE-004, BE-008 |
+| `users` (additions) | emailVerifiedAt, phoneVerifiedAt, pinHash, pinFailedAttempts, pinLockedUntil | — | BE-007, BE-008 |
 | `profiles` | userId, displayName, paymentHandle, avatarUrl | unique userId, unique paymentHandle | BE-004 |
-| `sessions` | userId, deviceId, refreshTokenHash, familyId, rotatedFrom, expiresAt, revokedAt, revokeReason | userId+revokedAt; unique refreshTokenHash; TTL on expiresAt | BE-004, BE-009 |
 | `devices` | userId, deviceId, userAgent, firstSeenAt, lastSeenAt, trusted, revokedAt, ipMetadata | unique userId+deviceId | BE-009 |
 | `otp_challenges` | userId/target, purpose, codeHash, attempts, expiresAt, consumedAt, resendAvailableAt | target+purpose; TTL on expiresAt | BE-007 |
 | `ledger_accounts` | ownerType (USER/SYSTEM), ownerId, kind (WALLET/SANDBOX_FUNDING/…), currency, cachedBalanceMinor, version | unique ownerType+ownerId+kind+currency | BE-010 |
@@ -35,7 +45,6 @@
 | `audit_logs` | actor, action, target, requestId, result, metadata, createdAt (append-only) | actor.id+createdAt; target+createdAt | BE-006 |
 | `webhook_events` | provider, eventId, receivedAt, signatureValid, status, processedAt | unique provider+eventId | BE-021 |
 | `provider_logs` | provider, operation, requestRef, outcome, latencyMs (no secrets) | provider+createdAt; TTL | BE-012 |
-| `migrations` | version, name, appliedAt, checksum | unique version | BE-003 |
 
 ## Redis keys (planned)
 

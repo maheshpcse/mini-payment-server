@@ -25,6 +25,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Reject committed environment files (credentials belong in Railway variables)
+        run: |
+          committed=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.example$' || true)
+          if [ -n "$committed" ]; then
+            echo "::error::Remove committed env files and rotate any credentials they contained: $committed"
+            exit 1
+          fi
       - name: Install locked dependencies (also downloads the test mongod binary)
         run: npm ci --no-fund
       - run: npm run lint

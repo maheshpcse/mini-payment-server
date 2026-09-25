@@ -27,8 +27,7 @@ describe('validateDeploymentEnv', () => {
     [{ TRUST_PROXY_HOPS: '0' }, /TRUST_PROXY_HOPS/],
     [{ LOG_LEVEL: 'debug' }, /LOG_LEVEL/],
     [{ CORS_ORIGINS: 'http://maheshpcse.github.io' }, /HTTPS origins/],
-    [{ CORS_ORIGINS: 'https://maheshpcse.github.io/mini-payment-app' }, /HTTPS origins/],
-    [{ CORS_ORIGINS: 'https://maheshpcse.github.io/' }, /HTTPS origins/],
+    [{ CORS_ORIGINS: 'not-a-url' }, /HTTPS origins/],
     [{ CORS_ORIGINS: '*' }, /wildcard/],
     [{ MONGODB_URI: 'mongodb://localhost:27017/app?replicaSet=rs0' }, /hosted MongoDB/],
     [{ MONGODB_URI: 'mongodb://mongo.railway.internal:27017/app' }, /replica set/],
@@ -36,6 +35,13 @@ describe('validateDeploymentEnv', () => {
   ])('rejects %o', (override, message) => {
     expect(validateDeploymentEnv({ ...valid, ...override }).join('\n')).toMatch(message);
   });
+
+  it.each(['https://maheshpcse.github.io/mini-payment-app/', 'https://maheshpcse.github.io/', '"https://maheshpcse.github.io"'])(
+    'accepts %s because it is normalized to the bare origin',
+    (CORS_ORIGINS) => {
+      expect(validateDeploymentEnv({ ...valid, CORS_ORIGINS })).toEqual([]);
+    },
+  );
 
   it('never echoes configured values', () => {
     const errors = validateDeploymentEnv({ ...valid, CORS_ORIGINS: 'http://leak.example', MONGODB_URI: `mongodb://${SECRET_HOST}/x` });

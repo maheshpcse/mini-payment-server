@@ -41,3 +41,13 @@ Update after every work session: what changed, checks actually run, limits, next
 **Checks run:** `actionlint` on all four workflows in both repos; Railway CLI 5.62.1 `up --help` flags; unauthenticated run fails fast. `npm run check` still green.
 
 **Not verified:** a real Railway deploy (needs `RAILWAY_TOKEN` and a provisioned project).
+
+## 24 September 2026 — Live CORS failure on GitHub Pages
+
+**Symptom:** `https://maheshpcse.github.io/mini-payment-app/` → preflight to Railway had no `Access-Control-Allow-Origin`. API itself healthy (`/health/ready` 200, MongoDB + Redis up).
+
+**Cause (probed with curl):** Railway `CORS_ORIGINS` was `https://maheshpcse.github.io/mini-payment-app/`; browsers send `Origin: https://maheshpcse.github.io`, so nothing matched. Pre-deploy validation would have rejected that value, so the running release evidently did not execute `deploy:prepare` — to confirm in Railway deploy logs.
+
+**Fix:** origins normalized to scheme+host (path, trailing slash, quotes dropped, deduplicated); rejected origins logged once each (bounded); effective `corsOrigins` in the startup log. Verified with the built server using the exact Railway value.
+
+**Security:** `.env.production` with live Railway MongoDB/Redis credentials had been committed to the public repo (and a placeholder `.env`). Files removed and CI now fails on tracked env files; **credentials must be rotated in Railway** (history still contains them).

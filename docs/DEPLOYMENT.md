@@ -48,7 +48,9 @@ Railway: mini-payment-server (Docker)  ──►  MongoDB replica set (Atlas or 
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` (use the variable-reference picker; the name follows your Redis service) |
 | `LOG_LEVEL` | `info` |
 
-   Leave `PORT` unset; Railway injects it. Secrets live in Railway variables only, never in the repository, image or frontend.
+   Leave `PORT` unset; Railway injects it. Railway reads **Variables**, not files: never commit `.env` or `.env.production` (the app does not load them in production, and CI fails if one is tracked). If credentials were ever committed, rotate them — deleting the file does not remove it from git history.
+
+   Prefer Railway private networking for data services (`${{MongoDB.MONGO_URL}}`-style references resolving to `*.railway.internal`) over the public `*.proxy.rlwy.net` endpoints, and include the database name in `MONGODB_URI` (`/mini_payment`); without it the driver uses `test`.
 3. Settings → Networking → Generate Domain. Note the HTTPS URL, e.g. `https://mini-payment-server-production.up.railway.app`.
 4. Deploy. The sequence is: Docker build → `node dist/scripts/deploy-prepare.js` (nonzero exit aborts the release, the previous deployment keeps serving) → `node dist/server.js` → Railway waits for `GET /api/v1/health/ready` to return 200 (up to 120 s) before switching traffic.
 
@@ -105,7 +107,7 @@ The job runs in a GitHub environment named after the Railway environment (`produ
 | `MongoDB is a standalone server` | Use Atlas or a replica-set template |
 | `another migration run holds the lock` | A concurrent release is migrating; retry after it finishes |
 | Health check timeout / 503 on `/health/ready` | MongoDB network access (Atlas IP allowlist) or Redis reference is wrong; check deploy logs |
-| Browser CORS error | The exact page origin is missing from `CORS_ORIGINS` |
+| Browser: `No 'Access-Control-Allow-Origin' header` on the preflight | `CORS_ORIGINS` does not contain the page's origin. The origin is scheme + host only: for `https://maheshpcse.github.io/mini-payment-app/` it is `https://maheshpcse.github.io`. Entries with a path, trailing slash or quotes are normalized to their origin at startup; the `server listening` log shows the effective `corsOrigins`, and each rejected origin is logged once as `CORS: origin not allowed`. Check with `curl -si -X OPTIONS $API/api/v1/health/ready -H 'Origin: https://maheshpcse.github.io' -H 'Access-Control-Request-Method: GET'` |
 
 ## Known constraint for authentication (BE-004)
 

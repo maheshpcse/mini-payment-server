@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEMO_USERNAMES } from '../reference-data/data/demo-accounts.js';
 import { DEFAULT_PREFERENCES, PAYMENT_LIMIT_CEILINGS, type UserDocument } from './user.model.js';
 
 export const personNameSchema = z
@@ -14,6 +15,25 @@ export const emailSchema = z
   .toLowerCase()
   .max(254)
   .pipe(z.email('must be a valid email address'));
+
+/** Handles that could be mistaken for staff, the product or an app route. */
+export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
+  'admin', 'administrator', 'api', 'app', 'auditor', 'billing', 'help', 'login', 'logout', 'me', 'minipay', 'mini.pay',
+  'mini_pay', 'null', 'operations', 'owner', 'payments', 'root', 'security', 'settings', 'signup', 'staff', 'support',
+  'system', 'undefined', 'welcome', 'www',
+]);
+
+export const USERNAME_PATTERN = /^[a-z](?:[a-z0-9]|[._](?=[a-z0-9]))*$/;
+
+/** Lowercase handle: starts with a letter; single dots/underscores between letters and digits. */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, 'must be at least 3 characters')
+  .max(30, 'must be at most 30 characters')
+  .regex(USERNAME_PATTERN, 'must start with a letter and use letters, digits, and single dots or underscores between them')
+  .refine((value) => !RESERVED_USERNAMES.has(value) && !DEMO_USERNAMES.has(value), 'is not available');
 
 /** Indian mobile numbers; stored in E.164 (+91XXXXXXXXXX). */
 export const phoneSchema = z
@@ -34,6 +54,7 @@ export const profileUpdateSchema = z
   .object({
     firstName: personNameSchema.optional(),
     lastName: personNameSchema.optional(),
+    username: usernameSchema.optional(),
     phone: z.union([phoneSchema, z.literal(null), z.literal('').transform(() => null)]).optional(),
   })
   .strict()
@@ -77,6 +98,7 @@ export function toUserDto(user: UserDocument) {
     lastName: user.lastName,
     fullName: `${user.firstName} ${user.lastName}`.trim(),
     initials: `${initialOf(user.firstName)}${initialOf(user.lastName)}`,
+    username: user.username ?? null,
     email: user.email,
     emailVerified: false,
     phone: user.phone ?? null,

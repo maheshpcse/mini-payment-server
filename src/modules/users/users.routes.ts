@@ -4,6 +4,7 @@ import { parseWith } from '../../common/http/validate.js';
 import { authOf } from '../../common/middleware/require-auth.js';
 import { randomToken } from '../../common/security/tokens.js';
 import { mongoose } from '../../infrastructure/database/mongodb/mongoose.js';
+import { duplicateField } from '../auth/auth.service.js';
 import { AvatarModel, type AvatarDocument } from './avatar.model.js';
 import { PAYMENT_LIMIT_CEILINGS, UserModel, type UserDocument } from './user.model.js';
 import { preferencesUpdateSchema, profileUpdateSchema, toUserDto, withDefaultPreferences } from './user.schemas.js';
@@ -48,7 +49,12 @@ export function createUsersRouter({ requireAuth }: { requireAuth: RequestHandler
       if (!user) throw new AppError('AUTH_SESSION_EXPIRED');
       res.json({ data: toUserDto(user) });
     } catch (err) {
-      if ((err as { code?: number }).code === 11000) throw new AppError('PROFILE_PHONE_UNAVAILABLE');
+      if ((err as { code?: number }).code === 11000) {
+        if (duplicateField(err) === 'username') {
+          throw new AppError('USERNAME_UNAVAILABLE', { details: [{ path: 'username', message: 'is already taken' }] });
+        }
+        throw new AppError('PROFILE_PHONE_UNAVAILABLE');
+      }
       throw err;
     }
   });

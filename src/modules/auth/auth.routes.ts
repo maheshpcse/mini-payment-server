@@ -7,9 +7,9 @@ import { parseWith } from '../../common/http/validate.js';
 import { rateLimit, type RateLimitStore } from '../../common/middleware/rate-limit.js';
 import { authOf } from '../../common/middleware/require-auth.js';
 import type { AppConfig } from '../../config/env.js';
-import { isDemoEmail } from '../reference-data/data/demo-accounts.js';
-import { emailSchema, passwordSchema, personNameSchema, phoneSchema } from '../users/user.schemas.js';
-import type { AuthService, SessionGrant } from './auth.service.js';
+import { isDemoIdentifier } from '../reference-data/data/demo-accounts.js';
+import { emailSchema, passwordSchema, personNameSchema, phoneSchema, usernameSchema } from '../users/user.schemas.js';
+import type { AuthService, LoginIdentifier, SessionGrant } from './auth.service.js';
 
 export const REFRESH_COOKIE = 'mp_rt';
 export const REFRESH_COOKIE_PATH = '/api/v1/auth';
@@ -18,13 +18,35 @@ const registerSchema = z
   .object({
     firstName: personNameSchema,
     lastName: personNameSchema,
+    username: usernameSchema,
     email: emailSchema,
     phone: z.union([phoneSchema, z.literal('').transform(() => undefined)]).optional(),
     password: passwordSchema,
   })
   .strict();
 
-const loginSchema = z.object({ email: emailSchema, password: z.string().min(1, 'is required').max(128) }).strict();
+/** `email` is the pre-username field name, still accepted from older clients. */
+const loginSchema = z
+  .object({
+    identifier: z.string().trim().toLowerCase().min(1, 'is required').max(254).optional(),
+    email: z.string().trim().toLowerCase().max(254).optional(),
+    password: z.string().min(1, 'is required').max(128),
+  })
+  .strict()
+  .transform((value, ctx) => {
+    const raw = value.identifier ?? value.email ?? '';
+    if (!raw) {
+      ctx.addIssue({ code: 'custom', path: ['identifier'], message: 'is required' });
+      return z.NEVER;
+    }
+    if (!raw.includes('@')) return { identifier: { username: raw } as LoginIdentifier, password: value.password };
+    const email = emailSchema.safeParse(raw);
+    if (!email.success) {
+      ctx.addIssue({ code: 'custom', path: ['identifier'], message: 'must be a valid email address or username' });
+      return z.NEVER;
+    }
+    return { identifier: { email: email.data } as LoginIdentifier, password: value.password };
+  });
 const forgotSchema = z.object({ email: emailSchema }).strict();
 const resetSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'is invalid'), password: passwordSchema }).strict();
 const changeSchema = z.object({ currentPassword: z.string().min(1, 'is required').max(128), newPassword: passwordSchema }).strict();
@@ -38,11 +60,16 @@ function emailBucket(req: Request): string | undefined {
   return createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 32);
 }
 
-/** The demo password is public, so a per-account bucket would only let one visitor lock everyone else out. */
-function loginEmailBucket(req: Request): string | undefined {
-  const email = (req.body as { email?: unknown } | undefined)?.email;
-  if (typeof email === 'string' && isDemoEmail(email)) return undefined;
-  return emailBucket(req);
+/**
+ * Keyed by what was typed, so an account's email and username are separate
+ * buckets. The demo password is public, so a demo bucket would only let one
+ * visitor lock everyone else out.
+ */
+function loginIdentifierBucket(req: Request): string | undefined {
+  const body = req.body as { identifier?: unknown; email?: unknown } | undefined;
+  const identifier = body?.identifier ?? body?.email;
+  if (typeof identifier !== 'string' || isDemoIdentifier(identifier)) return undefined;
+  return createHash('sha256').update(identifier.trim().toLowerCase()).digest('hex').slice(0, 32);
 }
 
 export interface AuthRouterDeps {
@@ -101,16 +128,18 @@ export function createAuthRouter({ authService, config, logger, rateLimitStore, 
     rateLimit(rateLimitStore, logger, [limit('register-ip', 10, 60 * MINUTE)]),
     async (req, res) => {
       const input = parseWith(registerSchema, req.body);
-      sendGrant(res, 201, await authService.register(input, userAgent(req)));
+      const user = await authService.register(input);
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(201).json({ data: { user } });
     },
   );
 
   router.post(
     '/login',
-    rateLimit(rateLimitStore, logger, [limit('login-ip', 50, 15 * MINUTE), limit('login-email', 10, 15 * MINUTE, loginEmailBucket)]),
+    rateLimit(rateLimitStore, logger, [limit('login-ip', 50, 15 * MINUTE), limit('login-identifier', 10, 15 * MINUTE, loginIdentifierBucket)]),
     async (req, res) => {
-      const { email, password } = parseWith(loginSchema, req.body);
-      sendGrant(res, 200, await authService.login(email, password, userAgent(req)));
+      const { identifier, password } = parseWith(loginSchema, req.body);
+      sendGrant(res, 200, await authService.login(identifier, password, userAgent(req)));
     },
   );
 

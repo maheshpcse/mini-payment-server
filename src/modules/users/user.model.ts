@@ -24,6 +24,8 @@ export interface UserPreferences {
 export interface UserDocument {
   publicId: string;
   email: string;
+  /** Lowercase sign-in handle; null only for rows created before migration 0004 ran. */
+  username?: string | null;
   phone?: string | null;
   firstName: string;
   lastName: string;
@@ -43,6 +45,7 @@ const userSchema = new mongoose.Schema<UserDocument>(
   {
     publicId: { type: String, required: true },
     email: { type: String, required: true },
+    username: { type: String, default: null },
     phone: { type: String, default: null },
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
@@ -74,6 +77,7 @@ const userSchema = new mongoose.Schema<UserDocument>(
 
 userSchema.index({ publicId: 1 }, { unique: true });
 userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ username: 1 }, { unique: true, partialFilterExpression: { username: { $type: 'string' } } });
 userSchema.index({ phone: 1 }, { unique: true, partialFilterExpression: { phone: { $type: 'string' } } });
 
 export const UserModel = mongoose.model<UserDocument>('User', userSchema);

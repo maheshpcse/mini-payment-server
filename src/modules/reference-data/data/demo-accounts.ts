@@ -17,6 +17,8 @@ export interface DemoPaymentMethodSeed {
 
 export interface DemoAccountSeed {
   email: string;
+  /** Reserved: nobody can register or switch to a demo handle, even where the account is not seeded. */
+  username: string;
   firstName: string;
   lastName: string;
   phone: string | null;
@@ -28,7 +30,7 @@ export interface DemoAccountSeed {
 
 export const DEMO_ACCOUNTS: DemoAccountSeed[] = [
   {
-    email: 'demo@example.com',
+    email: 'demo@example.com', username: 'priya.demo',
     firstName: 'Priya',
     lastName: 'Sharma',
     phone: '+919000000001',
@@ -40,7 +42,7 @@ export const DEMO_ACCOUNTS: DemoAccountSeed[] = [
     ],
   },
   {
-    email: 'demo.friend@example.com',
+    email: 'demo.friend@example.com', username: 'rahul.demo',
     firstName: 'Rahul',
     lastName: 'Verma',
     phone: '+919000000002',
@@ -48,10 +50,10 @@ export const DEMO_ACCOUNTS: DemoAccountSeed[] = [
     environments: 'ALL',
     paymentMethods: [{ type: 'UPI_ID', label: 'Personal UPI', vpa: 'rahul.demo@oksbi' }],
   },
-  { email: 'admin.demo@example.com', firstName: 'Anita', lastName: 'Admin', phone: null, roles: ['USER', 'ADMIN'], environments: 'NON_DEPLOYED', paymentMethods: [] },
-  { email: 'support.demo@example.com', firstName: 'Sanjay', lastName: 'Support', phone: null, roles: ['USER', 'SUPPORT'], environments: 'NON_DEPLOYED', paymentMethods: [] },
-  { email: 'operations.demo@example.com', firstName: 'Owen', lastName: 'Operations', phone: null, roles: ['USER', 'OPERATIONS'], environments: 'NON_DEPLOYED', paymentMethods: [] },
-  { email: 'auditor.demo@example.com', firstName: 'Aisha', lastName: 'Auditor', phone: null, roles: ['USER', 'AUDITOR'], environments: 'NON_DEPLOYED', paymentMethods: [] },
+  { email: 'admin.demo@example.com', username: 'admin.demo', firstName: 'Anita', lastName: 'Admin', phone: null, roles: ['USER', 'ADMIN'], environments: 'NON_DEPLOYED', paymentMethods: [] },
+  { email: 'support.demo@example.com', username: 'support.demo', firstName: 'Sanjay', lastName: 'Support', phone: null, roles: ['USER', 'SUPPORT'], environments: 'NON_DEPLOYED', paymentMethods: [] },
+  { email: 'operations.demo@example.com', username: 'operations.demo', firstName: 'Owen', lastName: 'Operations', phone: null, roles: ['USER', 'OPERATIONS'], environments: 'NON_DEPLOYED', paymentMethods: [] },
+  { email: 'auditor.demo@example.com', username: 'auditor.demo', firstName: 'Aisha', lastName: 'Auditor', phone: null, roles: ['USER', 'AUDITOR'], environments: 'NON_DEPLOYED', paymentMethods: [] },
 ];
 
 export function demoAccountsFor(appEnv: MigrationContext['appEnv']): DemoAccountSeed[] {
@@ -60,7 +62,10 @@ export function demoAccountsFor(appEnv: MigrationContext['appEnv']): DemoAccount
 }
 
 const DEMO_EMAILS = new Set(DEMO_ACCOUNTS.map((account) => account.email));
+export const DEMO_USERNAMES: ReadonlySet<string> = new Set(DEMO_ACCOUNTS.map((account) => account.username));
 
-export function isDemoEmail(email: string): boolean {
-  return DEMO_EMAILS.has(email.trim().toLowerCase());
+/** Email or username, as typed on the sign-in form. */
+export function isDemoIdentifier(identifier: string): boolean {
+  const value = identifier.trim().toLowerCase();
+  return DEMO_EMAILS.has(value) || DEMO_USERNAMES.has(value);
 }

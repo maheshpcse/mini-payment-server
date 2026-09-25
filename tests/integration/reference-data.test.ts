@@ -22,8 +22,8 @@ function migrate(appEnv: MigrationContext['appEnv'] = 'test') {
 
 const app = () => buildTestApp({ env: { JWT_SECRET: SECRET } });
 
-async function login(email: string, password = DEMO_PASSWORD, target = app()) {
-  const res = await request(target).post('/api/v1/auth/login').send({ email, password });
+async function login(identifier: string, password = DEMO_PASSWORD, target = app()) {
+  const res = await request(target).post('/api/v1/auth/login').send({ identifier, password });
   return { res, app: target, auth: { Authorization: `Bearer ${res.body.data?.accessToken as string}` } };
 }
 
@@ -62,7 +62,8 @@ describe('demo accounts', () => {
     for (const account of DEMO_ACCOUNTS) {
       const { res } = await login(account.email);
       expect(res.status, account.email).toBe(200);
-      expect(res.body.data.user).toMatchObject({ email: account.email, isDemo: true, roles: account.roles });
+      expect(res.body.data.user).toMatchObject({ email: account.email, username: account.username, isDemo: true, roles: account.roles });
+      expect((await login(account.username)).res.status, account.username).toBe(200);
     }
     const priya = await login('demo@example.com');
     const methods = await request(priya.app).get('/api/v1/payment-methods').set(priya.auth);
@@ -90,11 +91,12 @@ describe('demo accounts', () => {
     const target = app();
     await request(target)
       .post('/api/v1/auth/register')
-      .send({ firstName: 'Real', lastName: 'Person', email: 'demo@example.com', password: 'correct horse battery' });
+      .send({ firstName: 'Real', lastName: 'Person', username: 'real.person', email: 'demo@example.com', password: 'correct horse battery' });
     await migrate('test');
     expect((await login('demo@example.com', DEMO_PASSWORD, target)).res.status).toBe(401);
     const real = await login('demo@example.com', 'correct horse battery', target);
-    expect(real.res.body.data.user.isDemo).toBe(false);
+    expect(real.res.body.data.user).toMatchObject({ isDemo: false, username: 'real.person' });
+    expect((await login('priya.demo', DEMO_PASSWORD, target)).res.status).toBe(401);
     expect(await database.db.collection('payment_methods').countDocuments()).toBe(1);
   });
 
@@ -130,13 +132,39 @@ describe('demo accounts', () => {
     expect(prefs.status).toBe(200);
   });
 
-  it('exempts demo emails from the per-account login lockout', async () => {
+  it('exempts demo emails and usernames from the per-account login lockout', async () => {
     await migrate('test');
     const target = app();
     for (let attempt = 0; attempt < 11; attempt += 1) {
       expect((await login('demo@example.com', 'wrong password', target)).res.status).toBe(401);
+      expect((await login('priya.demo', 'wrong password', target)).res.status).toBe(401);
     }
     expect((await login('demo@example.com', DEMO_PASSWORD, target)).res.status).toBe(200);
+    expect((await login('priya.demo', DEMO_PASSWORD, target)).res.status).toBe(200);
+  });
+});
+
+describe('username backfill', () => {
+  it('derives a unique, valid username from the email of accounts created before usernames existed', async () => {
+    await runMigrations({ db: database.db, migrations: migrations.slice(0, 3), logger, context: { appEnv: 'test', fingerprintSecret: SECRET, hasher: FAST_HASHER } });
+    const legacy = ['Asha.Verma+pay@example.com', 'asha.verma@example.org', '42@example.com', 'admin@example.com', '__x-y__@example.com'];
+    await database.db.collection('users').insertMany(
+      legacy.map((email, index) => ({ publicId: `usr_legacy${index}`, email: email.toLowerCase(), firstName: 'L', lastName: 'U', passwordHash: 'x', roles: ['USER'] })),
+    );
+    await migrate('test');
+
+    const byEmail = new Map(
+      (await database.db.collection('users').find({ publicId: /^usr_legacy/ }).toArray()).map((user) => [user.email as string, user.username as string]),
+    );
+    expect(Object.fromEntries(byEmail)).toEqual({
+      'asha.verma+pay@example.com': 'asha.verma.pay',
+      'asha.verma@example.org': 'asha.verma',
+      '42@example.com': 'user',
+      'admin@example.com': 'admin2',
+      '__x-y__@example.com': 'x.y',
+    });
+    expect(await database.db.collection('users').findOne({ email: 'demo@example.com' })).toMatchObject({ username: 'priya.demo' });
+    expect(await database.db.collection('users').countDocuments({ username: null })).toBe(0);
   });
 });
 

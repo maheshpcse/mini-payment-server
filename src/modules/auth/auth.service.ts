@@ -4,7 +4,7 @@ import type { PasswordHasher } from '../../common/security/password-hasher.js';
 import { publicId, randomToken, sha256, type AccessTokenService } from '../../common/security/tokens.js';
 import { mongoose } from '../../infrastructure/database/mongodb/mongoose.js';
 import { UserModel, type UserDocument } from '../users/user.model.js';
-import { toUserDto } from '../users/user.schemas.js';
+import { toUserDto, type UserDto } from '../users/user.schemas.js';
 import { PasswordResetModel } from './password-reset.model.js';
 import { PREVIOUS_TOKEN_HASHES_KEPT, SessionModel, type SessionDocument } from './session.model.js';
 
@@ -32,18 +32,32 @@ export interface SessionGrant {
 export interface RegisterInput {
   firstName: string;
   lastName: string;
+  username: string;
   email: string;
   phone?: string | undefined;
   password: string;
 }
 
+/** Login accepts either handle; which one is decided by the presence of "@". */
+export type LoginIdentifier = { email: string } | { username: string };
+
 function isDuplicateKey(err: unknown): boolean {
   return (err as { code?: number }).code === 11000;
 }
 
-function passwordMentionsEmail(password: string, email: string): boolean {
-  const local = email.split('@')[0] ?? '';
-  return local.length >= 4 && password.toLowerCase().includes(local.toLowerCase());
+export function duplicateField(err: unknown): string | undefined {
+  return Object.keys((err as { keyPattern?: Record<string, unknown> }).keyPattern ?? {})[0];
+}
+
+function passwordMentions(password: string, handle: string | null | undefined): boolean {
+  const name = handle ?? '';
+  return name.length >= 4 && password.toLowerCase().includes(name.toLowerCase());
+}
+
+function passwordProblem(password: string, user: { email: string; username?: string | null }): string | null {
+  if (passwordMentions(password, user.email.split('@')[0])) return 'must not contain your email name';
+  if (passwordMentions(password, user.username)) return 'must not contain your username';
+  return null;
 }
 
 export function createAuthService(deps: AuthServiceDeps) {
@@ -95,15 +109,16 @@ export function createAuthService(deps: AuthServiceDeps) {
   }
 
   return {
-    async register(input: RegisterInput, userAgent: string): Promise<SessionGrant> {
-      if (passwordMentionsEmail(input.password, input.email)) {
-        throw new AppError('VALIDATION_FAILED', { details: [{ path: 'password', message: 'must not contain your email name' }] });
-      }
+    /** Creates the account only; the client signs in afterwards (no session is issued here). */
+    async register(input: RegisterInput): Promise<UserDto> {
+      const problem = passwordProblem(input.password, input);
+      if (problem) throw new AppError('VALIDATION_FAILED', { details: [{ path: 'password', message: problem }] });
       let user: UserDocument;
       try {
         const created = await UserModel.create({
           publicId: publicId('usr'),
           email: input.email,
+          username: input.username,
           phone: input.phone ?? null,
           firstName: input.firstName,
           lastName: input.lastName,
@@ -111,15 +126,19 @@ export function createAuthService(deps: AuthServiceDeps) {
         });
         user = created.toObject();
       } catch (err) {
+        // Usernames are public handles, so saying one is taken leaks nothing; emails stay ambiguous.
+        if (isDuplicateKey(err) && duplicateField(err) === 'username') {
+          throw new AppError('USERNAME_UNAVAILABLE', { details: [{ path: 'username', message: 'is already taken' }] });
+        }
         if (isDuplicateKey(err)) throw new AppError('AUTH_REGISTRATION_CONFLICT');
         throw err;
       }
       logger.info({ userId: user.publicId }, 'user registered');
-      return startSession(user, userAgent);
+      return toUserDto(user);
     },
 
-    async login(email: string, password: string, userAgent: string): Promise<SessionGrant> {
-      const user = await UserModel.findOne({ email }).lean<UserDocument>();
+    async login(identifier: LoginIdentifier, password: string, userAgent: string): Promise<SessionGrant> {
+      const user = await UserModel.findOne('email' in identifier ? { email: identifier.email } : { username: identifier.username }).lean<UserDocument>();
       if (!user) {
         await hasher.verifyDummy(password);
         throw new AppError('AUTH_INVALID_CREDENTIALS');
@@ -240,9 +259,8 @@ export function createAuthService(deps: AuthServiceDeps) {
       if (!reset) throw new AppError('AUTH_RESET_TOKEN_INVALID');
       const user = await UserModel.findOne({ publicId: reset.userId }).lean<UserDocument>();
       if (!user) throw new AppError('AUTH_RESET_TOKEN_INVALID');
-      if (passwordMentionsEmail(password, user.email)) {
-        throw new AppError('VALIDATION_FAILED', { details: [{ path: 'password', message: 'must not contain your email name' }] });
-      }
+      const problem = passwordProblem(password, user);
+      if (problem) throw new AppError('VALIDATION_FAILED', { details: [{ path: 'password', message: problem }] });
       await setPassword(user.publicId, password);
       await revokeSessions({ userId: user.publicId }, 'PASSWORD_RESET');
       logger.info({ userId: user.publicId }, 'password reset completed; sessions revoked');
@@ -257,9 +275,8 @@ export function createAuthService(deps: AuthServiceDeps) {
       if (currentPassword === newPassword) {
         throw new AppError('VALIDATION_FAILED', { details: [{ path: 'newPassword', message: 'must differ from the current password' }] });
       }
-      if (passwordMentionsEmail(newPassword, user.email)) {
-        throw new AppError('VALIDATION_FAILED', { details: [{ path: 'newPassword', message: 'must not contain your email name' }] });
-      }
+      const problem = passwordProblem(newPassword, user);
+      if (problem) throw new AppError('VALIDATION_FAILED', { details: [{ path: 'newPassword', message: problem }] });
       await setPassword(userId, newPassword);
       await revokeSessions({ userId, sessionId: trusted({ $ne: currentSessionId }) }, 'PASSWORD_CHANGED');
       logger.info({ userId }, 'password changed; other sessions revoked');
